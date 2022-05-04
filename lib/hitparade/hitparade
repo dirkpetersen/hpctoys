@@ -1,1 +1,11 @@
-# test
+#!/bin/bash
+
+#scriptname=${0##*/}
+unset PYTHONPATH
+unset PYTHONHOME
+
+export PYTHONUSERBASE=/app/lib/python3.6.9
+target=$(readlink -f $0)
+/usr/bin/python3 ${target}.py $@
+
+
