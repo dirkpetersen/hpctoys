@@ -1,0 +1,49 @@
+#! /bin/bash
+
+MYDIR=$1
+REPOS=$2
+DEFORG='moffitt-cancer-center'
+ME=$(whoami)
+
+olddir=$(pwd)
+if [[ -z ${REPOS} ]]; then
+  echo "2 arguments needed, example:"
+  echo "dir2github </my/dir/name> <my-repos-name>  or"
+  echo "dir2github </my/dir/name> <myuser/my-repos-name>"
+  echo "Note: an empty repos '<my-repos-name>' must exist on github.com"
+  exit
+fi
+if ! [[ -d ${MYDIR} ]]; then
+   echo "${MYDIR} does not exist, exiting ..."
+   exit
+fi
+cd "${MYDIR}"
+
+# git prepare
+if [[ -z $(git config --global user.name) ]]; then
+  mof-update-attributes
+  NICKNAME=$(jq -r .attributes.mailNickname[] ~/.config/moffitt-${ME}.json)
+  EMAIL=$(jq -r .attributes.mail[] ~/.config/moffitt-${ME}.json)
+  git config --global user.name "${NICKNAME}"
+  git config --global user.email "${EMAIL}" 
+fi
+
+
+if ! [[ "$REPOS" == *\/* ]]; then
+  REPOS=moffitt-cancer-center/${REPOS}
+fi
+if ! [[ -f README.md ]]; then
+  echo "# Repository ${REPOS}" > README.md
+fi 
+if ! [[ -f .gitignore ]]; then
+  echo "*__pycache__*" > .gitignore
+fi
+
+git init
+git symbolic-ref HEAD refs/heads/main
+git add -A .
+git commit -a -m "Initial commit"
+git remote add origin git@github.com:${REPOS}.git
+git remote -v
+git push --set-upstream origin main
+
