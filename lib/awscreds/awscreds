@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Make a symlink to this script
+# (or copy it) to /app/bin.
+
+scriptname=${0##*/}
+#rundir=$( dirname $0 )
+scriptfolder=/app/lib/${scriptname}
+
+#
+# remove local user-customisations to python behavior
+unset PYTHONPATH
+unset PYTHONHOME
+export PYTHONUSERBASE=/app/lib/python3.6.9
+
+/usr/bin/python3 ${scriptfolder}/${scriptname}.py $@
+
