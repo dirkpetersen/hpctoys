@@ -4,7 +4,7 @@
 unset PYTHONPATH
 unset PYTHONHOME
 
-#export PYTHONUSERBASE=/app/lib/python3.6.9
+export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 target=$(readlink -f $0)
 /usr/bin/python3 ${target}.py $@
 
