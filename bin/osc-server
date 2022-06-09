@@ -1,0 +1,280 @@
+#! /bin/bash
+
+# create openstack server and network dependencies 
+
+DEFIMAGE="Ubuntu-22.04-LTS"
+DEFIMAGEURL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64-disk-kvm.img"
+#
+# default settings for command line options
+OPT_f="m1.small"  # --flavor
+OPT_i="${DEFIMAGE}" # --image
+# "Ubuntu 18.04 LTS 20180522" or "CentOS 7 x86_64 1804"
+#
+SCR=${0##*/}
+SUBCMD=$1
+
+shift
+while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
+  #echo "OPTION: -${OPTION} ARG: ${OPTARG}"
+  eval OPT_${OPTION}=\$OPTARG
+done
+shift $((OPTIND - 1))
+
+if [[ -z ${HPCTOYS_ROOT} ]]; then
+  echo "HPCTOYS_ROOT not set, exiting..."
+  exit
+fi
+export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+if [[ -f ~/.openstackrc ]]; then
+  . ~/.openstackrc
+else
+  echo -e '\n*****  WARNING: ~/.openstackrc file missing ! *****\n'
+  echo 'Log in to the Openstack Horizon Dashboard. Navigate to Project -> API Access' 
+  echo 'to download the OpenStack RC file. (In older Openstack versions this is in' 
+  echo 'Project -> Compute -> Access & Security -> API Access)'
+  echo 'Save the file in your home as ~/.openstackrc and run "chmod 600 ~/.openstackrc"'
+  echo ''
+  echo 'To avoid a password prompt each time you use openstack you can comment the 2' 
+  echo 'lines containing OS_PASSWORD_INPUT and add a line "export OS_PASSWORD=<password>"'
+  exit
+fi
+
+checknet() {
+  printf "checking openstack configuration ... "
+  secgroups=$(openstack security group list -f json | jq -r .[].Name) 
+  if [[ "$secgroups" == *"os_standard"* ]]; then
+    echo "configured=true"
+    return 0 
+  else
+    echo "configured=false"
+    return 1 
+  fi 
+}
+
+cloudinit() {
+  TF=$(mktemp)
+  echo "#cloud-config" > $TF
+  echo "" >> $TF
+  echo "package_update: true" >> $TF
+  echo "package_upgrade: true" >> $TF
+  echo "packages:" >> $TF
+  echo " - python3-pip" >> $TF
+  echo " - mc" >> $TF
+  echo $TF
+}
+
+create() {
+  if [[ -z $1 ]]; then
+    echo "server name required"
+    exit
+  fi
+  if ! checknet; then
+    networksetup
+  fi
+  sshkey
+  echo "create floating ip address... "
+  PUBIP=$(openstack floating ip create public -f json | jq -r .floating_ip_address)
+  echo "create server $1 with size $OPT_f and OS $OPT_i ..."
+  openstack server create \
+              --flavor "${OPT_f}" \
+              --image "${OPT_i}" \
+              --security-group os_standard \
+              --network os_tenant_network \
+              --key-name os_key_$(whoami) \
+              --user-data $(cloudinit) \
+              $1
+  printf "assign floating ip ${PUBIP} to server $1 ... "
+  openstack server add floating ip $1 ${PUBIP}
+  echo "Done."
+  echo "Run \"ssh centos@${PUBIP}\" or \"ssh ubuntu@${PUBIP}\" to login"
+  echo "Execute this command to see console output of server $1:"
+  echo "osc console log show $1"
+}
+
+delete() {
+  if [[ -z $1 ]]; then
+    echo "server name required"
+    exit
+  fi
+  [[ "$(read -e -p 'Really delete server ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit
+  echo "deleting server $1 ... "
+  openstack server delete $1
+  echo "get unused floating IPs ... "
+  F_IPS=$(openstack floating ip list -f json | jq -r '.[] | select(.Port==null) | ."Floating IP Address"')
+  for F in ${F_IPS}; do
+    echo " delete unused floating IP $F ..."
+    openstack floating ip delete $F
+  done
+}
+
+list() {
+  openstack server list -f yaml
+}
+
+help() {
+  echo -e "\n*** ${SCR} - a tool to quickly create openstack servers ***"
+  echo -e "\nexecute one of these sub commands:"
+  echo " ${SCR} create <server-name>"
+  echo " ${SCR} delete <server-name>"
+  echo " ${SCR} list"
+  echo " ${SCR} checknet"
+  echo " ${SCR} nameservers"
+  echo " ${SCR} newimage <URL> <Image-Name>"
+  echo " ${SCR} projectcleanup (delete all resources)"
+  echo " ${SCR} showres  (show machine flavors and images)"
+  echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
+
+  echo -e "\nfor example:"
+  echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
+}
+
+nameservers() {
+  SRCH=$(grep '^search' /etc/resolv.conf)
+  NS=''
+  for s in $SRCH; do
+    if [[ $s == "search" || $s == "local"* ]]; then
+      #echo "skipping $s .."
+      continue
+    fi
+    NS+=$(nslookup -type=ns $s | awk '/internet address/ {print $NF}')" "
+  done 
+  NS1=$(echo ${NS} | sort | uniq)
+  NS2=$(cat /etc/resolv.conf |grep -v '^nameserver 127'|grep -i '^nameserver'|head -n1|cut -d ' ' -f2)
+  NS="$NS1 $NS2"
+  NS=$(cut -d' ' -f-5 <<<"$NS")
+  NSOPT=''
+  for N in $NS; do 
+    NSOPT+=" --dns-nameserver $N"
+  done
+  echo $NSOPT
+}
+
+networksetup() {
+  echo "creating network configuration ... "
+  openstack network create os_tenant_network
+  echo "creating subnet configuration with DNS ... "
+  openstack subnet create os_tenant_subnet \
+                      --subnet-range 10.1.13.0/24 \
+                      --network os_tenant_network \
+                      $(nameservers)
+  echo "creating L3 router configuration ... "
+  openstack router create os_l3_router
+  openstack router set os_l3_router --external-gateway public
+  echo "adding router to subnet ... "
+  openstack router add subnet os_l3_router os_tenant_subnet
+  echo "creating security group os_standard (ports 22,80,443,3389,8000-8999) ... "
+  openstack security group create os_standard
+  echo "allowing ICMP ... " 
+  openstack security group rule create os_standard --protocol icmp
+  echo "allowing port 22 ... "
+  openstack security group rule create os_standard --protocol tcp --dst-port 22:22 --remote-ip 0.0.0.0/0
+  echo "allowing port 80 ... "
+  openstack security group rule create os_standard --protocol tcp --dst-port 80:80 --remote-ip 0.0.0.0/0
+  echo "allowing port 443 ... "
+  openstack security group rule create os_standard --protocol tcp --dst-port 443:443 --remote-ip 0.0.0.0/0
+  echo "allowing port 3389 ... "
+  openstack security group rule create os_standard --protocol tcp --dst-port 3389:3389 --remote-ip 0.0.0.0/0
+  echo "allowing port 8000-8999 ... "
+  openstack security group rule create os_standard --protocol tcp --dst-port 8000:8999 --remote-ip 0.0.0.0/0
+  echo "installing new Image, executing this command:"
+  echo "${SCR} newimage ${DEFIMAGEURL} ${DEFIMAGE}"
+  newimage ${DEFIMAGEURL} ${DEFIMAGE}  
+}
+
+newimage() {
+  TF=$(mktemp)
+  if [[ -z $2 ]]; then
+    echo "please enter a URL or file and a name for your image, for example:"
+    echo "  ${SCR} newimage ${DEFIMAGEURL} ${DEFIMAGE}"
+    exit
+  fi
+  echo "try to delete existing image ..."
+  openstack image delete $2
+  if [[ -f $1 ]]; then
+    openstack image create --file $1 --disk-format qcow2 --min-disk 1 --min-ram 512 --progress $2
+  else
+    curl -o ${TF} -OkL $1
+    openstack image create --file ${TF} --disk-format qcow2 --min-disk 1 --min-ram 512 --progress $2
+    rm -f ${TF}
+  fi
+}
+
+projectpurge() {
+  echo "get openstack project list ..."
+  MYPRJ=$(openstack project list -f value -c Name)
+  if [[ $(echo "${MYPRJ}" | wc -w) -gt 1 ]]; then
+    echo "You have access to more than one project, execute this:"
+    echo "${SCR} projectpurge \"<project name>\""
+    exit
+  fi
+  echo "This will clean out your entire openstack project, including servers, images and networks"
+  [[ "$(read -e -p ' Do you REALLY want to continue ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit 
+  openstack project purge --keep-project --project ${MYPRJ}
+}
+
+projectpurge_inactive() {
+  echo "this code has some issues, do not use" 
+  exit
+  #
+  echo "This will clean out your entire openstack account, including servers, images and networks"
+  [[ "$(read -e -p ' Do you REALLY want to continue ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit
+  echo "removing floating IPs ..."
+  F_IPS=$(openstack floating ip list -f json | jq -r '.[]."Floating IP Address"')
+  PORTS=$(osc port list -f json | jq -r .[].ID)
+  for F in ${F_IPS}; do
+    echo "delete IP $F ..."
+    openstack floating ip delete $F
+  done
+  echo "clear router gateway ..."
+  openstack router unset os_l3_router --external-gateway
+  echo "delete router interfaces first "
+  echo "delete security group ... "
+  openstack security group delete os_standard
+  for P in ${PORTS}; do
+    echo "delete port $P ..."
+    openstack port delete $P
+  done
+  echo "delete router ... "
+  openstack router delete os_l3_router
+  for P in ${PORTS}; do
+    echo "delete port $P ..."
+    openstack port delete $P
+  done
+  echo "delete network ... "
+  openstack network delete os_tenant_network
+}
+
+showres() {
+  openstack flavor list 
+  openstack image list
+}
+
+sshkey() {
+  if [[ -f ~/.ssh/id_rsa.pub ]]; then
+    echo "remove key os_key_$(whoami) if exists... "
+    osc keypair delete os_key_$(whoami) 2>/dev/null
+    echo "refreshing public key os_key_$(whoami) ... "
+    openstack keypair create --public-key ~/.ssh/id_rsa.pub os_key_$(whoami)
+  else
+    echo "Public key ~/.ssh/id_rsa.pub does not exist. Please create it with 'ssh-keygen'"
+  fi
+}
+
+args() {
+  while getopts a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z: OPTION "$@"; do
+    echo "OPTION: -${OPTION} ARG: ${OPTARG}"
+    eval OPT_${OPTION}=\$OPTARG
+  done
+  shift $((OPTIND - 1))
+  printf " arg: '%s'" "$@"
+  echo ""
+}
+
+if [[ ${SUBCMD} =~ ^(create|delete|list|help|checknet|nameservers|newimage|projectpurge|showres|sshkey|help|args)$ ]]; then
+  ${SUBCMD} "$@"
+else
+  echo "Invalid subcommand: ${SUBCMD}" >&2
+  help
+  exit 1
+fi
+

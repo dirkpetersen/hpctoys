@@ -1,0 +1,30 @@
+#! /bin/bash
+
+if [[ -z ${HPCTOYS_ROOT} ]]; then
+  echo "HPCTOYS_ROOT not set, exiting..."
+  exit
+fi
+
+#export PIP_USER=yes
+export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+
+scriptn=${0##*/}
+cmdline="$@"
+
+
+if [[ -f ~/.openstackrc ]]; then
+  . ~/.openstackrc
+else
+  echo -e '\n*****  WARNING: ~/.openstackrc file missing ! *****\n'
+  echo 'Log in to the Openstack Horizon Dashboard. Navigate to Project -> API Access'
+  echo 'to download the OpenStack RC file. (In older Openstack versions this is in'
+  echo 'Project -> Compute -> Access & Security -> API Access)'
+  echo 'Save the file in your home as ~/.openstackrc and run "chmod 600 ~/.openstackrc"'
+  echo ''
+  echo 'To avoid a password prompt each time you use openstack you can comment the 2'
+  echo 'lines containing OS_PASSWORD_INPUT and add a line "export OS_PASSWORD=<password>"'
+  exit
+fi
+
+openstack ${cmdline}
+
