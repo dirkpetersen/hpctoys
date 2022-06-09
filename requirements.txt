@@ -1,0 +1,3 @@
+# ensure that <37 is installed for py3.6 compatibily 
+cryptography==36.0.0
+
