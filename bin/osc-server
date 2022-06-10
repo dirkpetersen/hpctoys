@@ -217,16 +217,16 @@ projectpurge_inactive() {
 projectpurge() {
   echo "This will clean out your entire openstack account, including servers, images and networks"
   [[ "$(read -e -p ' Do you REALLY want to continue ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit
-  echo "retrieve servers ..."
-  for S in $(openstack server list -f value -c Name); do
-    echo " deleting server $S ..."
-    openstack server delete $S
-  done 
   echo "retrieve floating IPs ..."
   F_IPS=$(openstack floating ip list -f json | jq -r '.[]."Floating IP Address"')
   for F in ${F_IPS}; do
     echo " delete floating IP $F ..."
     openstack floating ip delete $F
+  done 
+  echo "retrieve servers ..."
+  for S in $(openstack server list -f value -c Name); do
+    echo " deleting server $S ..."
+    openstack server delete $S
   done 
   echo "clear router gateway ..."
   openstack router unset os_l3_router --external-gateway
