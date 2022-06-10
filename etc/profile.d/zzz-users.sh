@@ -48,8 +48,21 @@ if [[ "$EUID" -ne 0 ]]; then
     fi 
     . $(cat ~/.config/hpctoys/spack_lmod_bash)
   fi
+  # Easybuild Settings 
+  EASYBUILD_JOB_CORES=4
+  EASYBUILD_CUDA_COMPUTE_CAPABILITIES=7.5,8.0,8.6,9.0
+  EASYBUILD_BUILDPATH=/dev/shm/scicompappsvc
+  EASYBUILD_PREFIX=/app/eb
+  EASYBUILD_JOB_OUTPUT_DIR=/app/eb/slurm-output
+  EASYBUILD_JOB_BACKEND=Slurm
+  EASYBUILD_PARALLEL=16
+  EASYBUILD_GITHUB_USER=scicomp-moffitt
+  EASYBUILD_UPDATE_MODULES_TOOL_CACHE=True
+  #EASYBUILD_ROBOT_PATHS=/home/scicompappsvc/.local/easybuild/easyconfigs:/app/eb/fh/fh_easyconfigs/:/app/eb/mcc/mcc_easyconfigs/
+
+  
   # *** Lmod settings *** 
-  export MODULEPATH=${MODULEPATH}:${GR}/local/eb/modules/all:${GR}/local/other/modules
+  export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules
   export LMOD_MODULERCFILE=${GR}/etc/lmod/rc.lua
   # *** Slurm settings *** 
   # a better format for Slurm's squeue command 

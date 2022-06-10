@@ -86,9 +86,11 @@ create() {
   printf "assign floating ip ${PUBIP} to server $1 ... "
   openstack server add floating ip $1 ${PUBIP}
   echo "Done."
-  echo "Run \"ssh centos@${PUBIP}\" or \"ssh ubuntu@${PUBIP}\" to login"
+  echo "Run one of these commands:" 
+  echo " ssh centos@${PUBIP}"
+  echo " ssh ubuntu@${PUBIP}"
   echo "Execute this command to see console output of server $1:"
-  echo "osc console log show $1"
+  echo -e " osc console log show $1\n"
 }
 
 delete() {
@@ -120,7 +122,7 @@ help() {
   echo " ${SCR} checknet"
   echo " ${SCR} nameservers"
   echo " ${SCR} newimage <URL> <Image-Name>"
-  echo " ${SCR} projectcleanup (delete all resources)"
+  echo " ${SCR} projectpurge (delete all resources)"
   echo " ${SCR} showres  (show machine flavors and images)"
   echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
 
@@ -191,15 +193,15 @@ newimage() {
   echo "try to delete existing image ..."
   openstack image delete $2
   if [[ -f $1 ]]; then
-    openstack image create --file $1 --disk-format qcow2 --min-disk 1 --min-ram 512 --progress $2
+    openstack image create --file $1 --disk-format qcow2 --min-disk 2 --min-ram 512 --progress $2
   else
     curl -o ${TF} -OkL $1
-    openstack image create --file ${TF} --disk-format qcow2 --min-disk 1 --min-ram 512 --progress $2
+    openstack image create --file ${TF} --disk-format qcow2 --min-disk 2 --min-ram 512 --progress $2
     rm -f ${TF}
   fi
 }
 
-projectpurge() {
+projectpurge_inactive() {
   echo "get openstack project list ..."
   MYPRJ=$(openstack project list -f value -c Name)
   if [[ $(echo "${MYPRJ}" | wc -w) -gt 1 ]]; then
@@ -212,36 +214,43 @@ projectpurge() {
   openstack project purge --keep-project --project ${MYPRJ}
 }
 
-projectpurge_inactive() {
-  echo "this code has some issues, do not use" 
-  exit
-  #
+projectpurge() {
   echo "This will clean out your entire openstack account, including servers, images and networks"
   [[ "$(read -e -p ' Do you REALLY want to continue ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit
-  echo "removing floating IPs ..."
+  echo "retrieve servers ..."
+  for S in $(openstack server list -f value -c Name); do
+    echo " deleting server $S ..."
+    openstack server delete $S
+  done 
+  echo "retrieve floating IPs ..."
   F_IPS=$(openstack floating ip list -f json | jq -r '.[]."Floating IP Address"')
-  PORTS=$(osc port list -f json | jq -r .[].ID)
   for F in ${F_IPS}; do
-    echo "delete IP $F ..."
+    echo " delete floating IP $F ..."
     openstack floating ip delete $F
-  done
+  done 
   echo "clear router gateway ..."
   openstack router unset os_l3_router --external-gateway
-  echo "delete router interfaces first "
-  echo "delete security group ... "
+  echo "delete security group os_standard ..."
   openstack security group delete os_standard
+  echo "retrieve ports ..."
+  PORTS=$(osc port list -f json | jq -r .[].ID)
   for P in ${PORTS}; do
-    echo "delete port $P ..."
-    openstack port delete $P
+    echo " delete port $P ..."
+    openstack router remove port os_l3_router $P 2>/dev/null 
+    openstack port delete $P 2>/dev/null
   done
-  echo "delete router ... "
-  openstack router delete os_l3_router
-  for P in ${PORTS}; do
-    echo "delete port $P ..."
-    openstack port delete $P
-  done
-  echo "delete network ... "
+  echo "delete router os_l3_router ... "
+  openstack router delete os_l3_router 
+  echo "delete network os_tenant_network ... "
   openstack network delete os_tenant_network
+  echo "retrieve private images ... "
+  for I in $(openstack image list --private -f value -c Name); do 
+    echo " deleting private image \"$I\" ..."
+    openstack image delete "$I"
+  done
+  echo "remove key os_key_$(whoami) ... "
+  openstack keypair delete os_key_$(whoami)
+  echo -e "\nAll resources purged from current project !\n"
 }
 
 showres() {
@@ -252,7 +261,7 @@ showres() {
 sshkey() {
   if [[ -f ~/.ssh/id_rsa.pub ]]; then
     echo "remove key os_key_$(whoami) if exists... "
-    osc keypair delete os_key_$(whoami) 2>/dev/null
+    openstack keypair delete os_key_$(whoami) 2>/dev/null
     echo "refreshing public key os_key_$(whoami) ... "
     openstack keypair create --public-key ~/.ssh/id_rsa.pub os_key_$(whoami)
   else
