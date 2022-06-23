@@ -7,8 +7,31 @@
 GID_SUPERUSERS=111111
 UID_APPMGR=222222
 
+# helper functions 
 ingroup(){ [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
 inpath(){ builtin type -P "$1" &> /dev/null ; }   #is executable in path
+addLineToFile() {  
+  # addLineToFile <line> <filename>
+  if ! grep "^$1" "$2" > /dev/null; then
+    echo "$1" >> "$2"
+  fi
+}
+addLineBelowLineToFile() {
+  # addLineBelowLineToFile <add-this> <below-this> <filename>
+  if ! grep "^$1" "$3" > /dev/null; then
+    sed -i "/^$2*/a $1" "$3"
+  fi
+}
+readConfigOrDefault() {
+  # readConfigOrDefault <setting> <default>
+  if [[ -f ~/.config/hpctoys/$1 ]]; then 
+    return "$(cat ~/.config/hpctoys/$1)"
+  elif [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/$1 ]]; then
+    return "$(cat ${HPCTOYS_ROOT}/etc/hpctoys/$1)"
+  else 
+    return "$2"
+  fi
+}
 
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)
@@ -18,7 +41,10 @@ else
   echo 'Your shell does not support ${BASH_SOURCE}. Please use "bash" to setup hpctoys.'  
   exit
 fi
-export HPCTOYS_ROOT=${GR}
+if [[ -z ${TMPDIR} ]]; then
+  export TMPDIR="/tmp"
+fi
+export HPCTOYS_ROOT="${GR}"
 
 if [[ "$EUID" -ne 0 ]]; then
   # Security: everyone except app managers should have a umask of 0027 or 0007 
@@ -35,7 +61,14 @@ if [[ "$EUID" -ne 0 ]]; then
   fi 
   if ! [[ -d ~/.config/hpctoys ]]; then
     mkdir -p  ~/.config/hpctoys
-  fi 
+  fi
+
+  # replace dark blue color in terminal and VI
+  COL=$(dircolors)
+  eval ${COL/di=01;34/di=01;36}
+  if ! [[ -f ~/.vimrc ]]; then
+    echo -e "syntax on\ncolorscheme desert" > ~/.vimrc
+  fi
   
   # *** Spack settings ***
   if [[ -d /home/exacloud/software/spack ]]; then 

@@ -1,5 +1,6 @@
 # HPCToys specific 
 opt/
+etc/hpctoys/
 tmp/
 
 # Byte-compiled / optimized / DLL files
