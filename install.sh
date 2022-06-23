@@ -8,6 +8,7 @@ fi
 . etc/profile.d/zzz-users.sh
 MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
 CURRDIR=$(pwd)
+HADERROR=""
 
 if ! inpath 'curl'; then
   echo "This script requires 'curl'. Please ask your system administrator to install curl and add it to your PATH."
@@ -178,10 +179,20 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
 fi
 
 # Python
-VER="3.10.4"
-VER_B="" # beta ver such as b1, b2 or b3
-if [[ -z ${VER_B} ]]; then
-  COMP_WITH_OPT="--enable-optimizations"
+VER="3.11.0"
+VER_B="b3" # beta ver such as b1, b2 or b3
+GCCMOD=$(ml --terse avail | grep -i '^gcc' | tail -1)
+if [[ -z ${GCCMOD} ]]; then # sometimes lmod prints to stderr
+  GCCMOD=$(ml --terse avail 2>&1 >/dev/null | grep -i '^gcc' | tail -1)
+fi
+if [[ -n ${GCCMOD} ]]; then
+  #try to load a potentially newer GCC via environment modules 
+  ml ${GCCMOD}
+fi
+GCCVER=$(gcc -dumpfullversion)
+if [[ ${GCCVER} > '8.1.0' ]]; then 
+  echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
+  COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
 fi
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   cd ${MYTMP}
@@ -199,8 +210,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     addLineToFile '_ssl _ssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libssl.a -Wl,--exclude-libs,libssl.a -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
     addLineToFile '_hashlib _hashopenssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
     ./configure --prefix "${TMPDIR}/hpctoys/lpython" \
-                --with-openssl=${OPENSSL_ROOT} ${COMP_WITH_OPT} \
-                --disable-test-modules 
+                --with-openssl=${OPENSSL_ROOT} ${COMP_WITH_OPT} 
     make -j 4
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install
@@ -208,19 +218,26 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
       cd "${TMPDIR}/hpctoys"
       echo -e "\n *** creating archive lpython-${VER}.tar.xz ...\n"
       tar cfvJ lpython-${VER}.tar.xz ./lpython
-      echo -e "\n *** copying archive ...\n"
-      mv -vf lpython-${VER}.tar.xz ${HPCTOYS_ROOT}/opt/
-      ln -sf "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" "${HPCTOYS_ROOT}/bin/python${VER::-2}"
-      ### addional packages in ${HPCTOYS_ROOT}/opt/python
-      lpip install --upgrade pip
-      lpip install openstackclient \
-           pyyaml pandas paramiko pythondialog easybuild
+      FSIZE=$(stat -c%s lpython-${VER}.tar.xz)
+      if [[ (( ${FSIZE} -gt 30000000 )) ]]; then     
+        echo -e "\n *** copying archive ...\n"
+        mv -vf lpython-${VER}.tar.xz ${HPCTOYS_ROOT}/opt/
+        ln -sf "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" "${HPCTOYS_ROOT}/bin/python${VER::-2}"
+        ### addional packages in ${HPCTOYS_ROOT}/opt/python
+        lpip install --upgrade pip
+        lpip install openstackclient \
+             pyyaml pandas paramiko pythondialog easybuild
+      else
+        echo -e "\n *** There was a problem installing Python ${VER}.\n"
+        HADERROR="1"
+      fi
     else
       echo -e "\n *** There was a problem installing Python ${VER}.\n"
-      exit
+      HADERROR="1"
     fi
   else
     echo "unable to download ${DURL}, exiting !"
+    HADERROR="1"
   fi
   cd ${CURRDIR}
 fi
@@ -228,5 +245,7 @@ fi
 cd ${CURRDIR}
 bash setdefaults.sh ${MYTMP}
 
-rm -rf ${MYTMP}
+if [[ -z ${HADERROR} ]]; then
+  rm -rf ${MYTMP}
+fi
 
