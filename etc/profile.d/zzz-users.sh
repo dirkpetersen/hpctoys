@@ -41,7 +41,7 @@ lmodLoad() {
   . <({ LERR=$({ LOUT=$(ml --terse avail); } 2>&1; declare -p LOUT >&2); declare -p LERR; } 2>&1)
   AVAIL="${LOUT}"
   if [[ -z "${AVAIL}" ]]; then
-    AVAIL="$(LERR)"
+    AVAIL="${LERR}"
   fi
   for M in "$@"; do
     ml $(grep -i "^${M}" <<< "${AVAIL}" | tail -1)
