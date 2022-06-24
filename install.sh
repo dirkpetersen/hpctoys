@@ -243,8 +243,10 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   if [[ -f Python-${VER}${VER_B}.tar.xz ]]; then 
     tar xf Python-${VER}${VER_B}.tar.xz           
     cd Python-${VER}${VER_B}
+    OPENSSL_OPTIONS=""
     if [[ -d ${HPCTOYS_ROOT}/opt/openssl/lib ]]; then 
       export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HPCTOYS_ROOT}/opt/openssl/lib
+      OPENSSL_OPTIONS="--with-openssl=${OPENSSL_ROOT}"
       addLineToFile '_socket socketmodule.c' Modules/Setup
       addLineToFile 'OPENSSL=${HPCTOYS_ROOT}/opt/openssl' Modules/Setup
       #if [[ -z ${EXTRA_TUNING_OPTIONS} ]]; then
@@ -257,8 +259,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
       #fi
     fi
     ./configure --prefix="${TMPDIR}/hpctoys/lpython" \
-                --with-openssl="${OPENSSL_ROOT}" ${EXTRA_TUNING_OPTIONS} \
-               2>&1 | tee configure.output
+         ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
     make -j 4 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install 2>&1 | tee make.install.output
