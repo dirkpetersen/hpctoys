@@ -1,0 +1,21 @@
+#! /bin/bash
+
+echoerr(){
+  # echo to stderr instead of stdout
+  echo -e "$@" 1>&2
+}
+
+export PIP_USER=yes
+export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+
+lpython -m "pip" $@
+
+cmdprn=${@//--/ }
+
+if [[ $? -eq 0 ]]; then
+  logger "Python package (un)install successful: lpython -m pip $cmdprn"
+else
+  logger "Python package (un)install failed: lpython -m pip $cmdprn"
+fi
+
+echoerr "\nNote: \"$@\" packages ran in ${PYTHONUSERBASE}\n"
