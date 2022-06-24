@@ -1,6 +1,6 @@
 #! /bin/bash
 
-PYVER="3.10.5"
+PYVER="3.11.0"
 MYPY="/tmp/hpctoys/lpython/bin/python${PYVER::-2}"
 MYPYLIB="/tmp/hpctoys/lpython/lib/libpython${PYVER::-2}.a"
 PYARCHIVE="${HPCTOYS_ROOT}/opt/lpython-${PYVER}.tar.xz"

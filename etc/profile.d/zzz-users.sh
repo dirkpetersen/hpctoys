@@ -32,6 +32,21 @@ readConfigOrDefault() {
     return "$2"
   fi
 }
+lmodLoad() {
+  # capture both STDOUT and STDERR from ml avail 
+  if [[ -z $1 ]]; then
+    echo "please enter start of your module names, e.g. gcc libffi"
+    return
+  fi
+  . <({ LERR=$({ LOUT=$(ml --terse avail); } 2>&1; declare -p LOUT >&2); declare -p LERR; } 2>&1)
+  AVAIL="${LOUT}"
+  if [[ -z "${AVAIL}" ]]; then
+    AVAIL="$(LERR)"
+  fi
+  for M in "$@"; do
+    ml $(grep -i "^${M}" <<< "${AVAIL}" | tail -1)
+  done
+}
 
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)

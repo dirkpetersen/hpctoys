@@ -115,7 +115,11 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
     make install
     ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
     rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
-    ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    if [[ -d /etc/pki/tls/certs ]]; then
+      ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    else
+      ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    fi
   else
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" OpenSSL"
@@ -216,19 +220,13 @@ fi
 
 # Python
 lpython() {
+# libffi-devel is needed to compile _ctypes
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
-GCCMOD=$(ml --terse avail | grep -i '^gcc' | tail -1)
-if [[ -z ${GCCMOD} ]]; then # sometimes lmod prints to stderr
-  GCCMOD=$(ml --terse avail 2>&1 >/dev/null | grep -i '^gcc' | tail -1)
-fi
-if [[ -n ${GCCMOD} ]]; then
-  #try to load a potentially newer GCC via environment modules 
-  ml ${GCCMOD}
-fi
+lmodLoad gcc libffi sqlite ncurses readline
 GCCVER=$(gcc -dumpfullversion)
 if [[ ${GCCVER} > '8.1.0' ]]; then 
-  #echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
+  echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
   COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
 fi
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
