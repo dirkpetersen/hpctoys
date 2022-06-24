@@ -8,7 +8,16 @@ fi
 . etc/profile.d/zzz-users.sh
 MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
 CURRDIR=$(pwd)
-HADERROR=""
+SCR=${0##*/}
+SUBCMD=$1
+ERRLIST=""
+
+shift
+while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
+  #echo "OPTION: -${OPTION} ARG: ${OPTARG}"
+  eval OPT_${OPTION}=\$OPTARG
+done
+shift $((OPTIND - 1))
 
 if ! inpath 'curl'; then
   echo "This script requires 'curl'. Please ask your system administrator to install curl and add it to your PATH."
@@ -20,14 +29,17 @@ umask 0000
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
 
 # installing jq, the json processor 
+jq() {
 if ! inpath 'jq'; then
   DURL="https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64"
   curl -kL ${DURL} -o ${HPCTOYS_ROOT}/opt/other/bin/jq
   chmod +x ${HPCTOYS_ROOT}/opt/other/bin/jq
   ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/jq ${HPCTOYS_ROOT}/bin/jq
 fi
+}
 
 # Keychain
+keychain() {
 if ! inpath 'keychain'; then
   VER="2.8.5"
   cd ${MYTMP}
@@ -41,11 +53,14 @@ if ! inpath 'keychain'; then
     chmod +x ${HPCTOYS_ROOT}/bin/keychain
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Keychain"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # installing dialog util for ncurses GUI 
+dialog() {
 if ! inpath 'dialog'; then
   cd ${MYTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
@@ -59,11 +74,14 @@ if ! inpath 'dialog'; then
     ln -s ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Dialog"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # aws cli version 2 
+awscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
   cd ${MYTMP}
   DURL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
@@ -73,11 +91,14 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then
     ./aws/install --bin-dir ${HPCTOYS_ROOT}/bin --install-dir ${HPCTOYS_ROOT}/opt/awscli2 --update
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" AWS-CLI"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # OpenSSL
+openssl() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
   VER="1_1_1p" 
   cd ${MYTMP}
@@ -97,13 +118,17 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
     ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" OpenSSL"
   fi
   export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
   cd ${CURRDIR}
 fi
+}
 
 # Midnight Commander 
-if ! [[ -d "${HPCTOYS_ROOT}/opt/mc" ]]; then
+mc() {
+if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
+#if ! inpath 'mc'; then
   # first install s-lang dependency
   VER="2.3.2"
   cd ${MYTMP}
@@ -137,14 +162,20 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/mc" ]]; then
                 --enable-charset
     make -j 4
     make install
+    if [[ "$?" -ne 0 ]]; then
+      ERRLIST+=" Midnight-Commander"
+    fi
     ln -sfr ${HPCTOYS_ROOT}/opt/mc/bin/mc ${HPCTOYS_ROOT}/bin/mc
   else 
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Midnight-Commander"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # Rclone 
+rclone() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
   cd ${MYTMP}
   DURL="https://downloads.rclone.org/rclone-current-linux-amd64.zip"
@@ -160,11 +191,14 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
     ln -sfr ${HPCTOYS_ROOT}/opt/rclone/rclone.1 ${HPCTOYS_ROOT}/opt/rclone/man/rclone.1
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Rclone"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # Miniconda
+miniconda() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
   cd ${MYTMP}
   DURL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
@@ -174,11 +208,14 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
     bash Miniconda3-latest-Linux-x86_64.sh -b -p ${HPCTOYS_ROOT}/opt/miniconda
   else
     echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Miniconda"
   fi
   cd ${CURRDIR}
 fi
+}
 
 # Python
+lpython() {
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
 GCCMOD=$(ml --terse avail | grep -i '^gcc' | tail -1)
@@ -191,7 +228,7 @@ if [[ -n ${GCCMOD} ]]; then
 fi
 GCCVER=$(gcc -dumpfullversion)
 if [[ ${GCCVER} > '8.1.0' ]]; then 
-  echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
+  #echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
   COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
 fi
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
@@ -229,23 +266,47 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
              pyyaml pandas paramiko pythondialog easybuild
       else
         echo -e "\n *** There was a problem installing Python ${VER}.\n"
-        HADERROR="1"
+        ERRLIST+=" Python"
       fi
     else
       echo -e "\n *** There was a problem installing Python ${VER}.\n"
-      HADERROR="1"
+      ERRLIST+=" Python"
     fi
   else
     echo "unable to download ${DURL}, exiting !"
-    HADERROR="1"
+    ERRLIST+=" Python"
   fi
   cd ${CURRDIR}
 fi
+}
 
 cd ${CURRDIR}
 bash setdefaults.sh ${MYTMP}
 
-if [[ -z ${HADERROR} ]]; then
+if [[ -z ${SUBCMD} ]]; then
+  # Run all installations or comment out
+  jq
+  keychain
+  dialog
+  awscli2
+  openssl
+  mc
+  rclone
+  miniconda
+  lpython
+elif [[ ${SUBCMD} =~ ^(jq|keychain|dialog|awscli2|openssl|mc|rclone|miniconda|lpython|)$ ]]; then
+  ${SUBCMD} "$@"
+else
+  echo "Invalid subcommand: ${SUBCMD}" >&2
+  help
+  exit 1
+fi
+
+# cleanup
+if [[ -z ${ERRLIST} ]]; then
   rm -rf ${MYTMP}
+else
+  echo "Errors in these installations: ${ERRLIST}"
+  echo "Check ${MYTMP} for troubleshooting"
 fi
 
