@@ -6,10 +6,15 @@
 
 GID_SUPERUSERS=111111
 UID_APPMGR=222222
+export LPYTHONVER="3.11.0"
 
 # helper functions 
-ingroup(){ [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
-inpath(){ builtin type -P "$1" &> /dev/null ; }   #is executable in path
+ingroup() { [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
+inpath() { builtin type -P "$1" &> /dev/null ; }   #is executable in path
+echoerr() {
+  # echo to stderr instead of stdout
+  echo -e "$@" 1>&2
+}
 addLineToFile() {  
   # addLineToFile <line> <filename>
   if ! grep "^$1" "$2" > /dev/null; then
@@ -35,7 +40,7 @@ readConfigOrDefault() {
 intVersion() { 
   echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; 
 }
-lmodLoad() {
+loadLmod() {
   # capture both STDOUT and STDERR from ml avail 
   if [[ -z $1 ]]; then
     echo "please enter start of your module names, e.g. gcc libffi"
@@ -50,6 +55,31 @@ lmodLoad() {
     ml $(grep -i "^${M}" <<< "${AVAIL}" | tail -1)
   done
 }
+initLpython() {
+  export LPYTHON="/tmp/hpctoys/lpython/bin/python${LPYTHONVER::-2}"
+  export PATH="$PATH:${HPCTOYS_ROOT}/opt/python/bin:/tmp/hpctoys/lpython/bin"
+  LPYTHONLIB="/tmp/hpctoys/lpython/lib/libpython${LPYTHONVER::-2}.a"
+  PYARCHIVE="${HPCTOYS_ROOT}/opt/lpython-${LPYTHONVER}.tar.xz"
+  CURRMASK=$(umask)
+  if ! [[ -f "${LPYTHON}" && -f "${LPYTHONLIB}" ]]; then
+    echoerr " preparing local Python ${LPYTHONVER} installation ..."
+    umask 0000
+    mkdir -p "${TMPDIR}/hpctoys"
+    tar xf ${PYARCHIVE} -C "${TMPDIR}/hpctoys"
+    umask ${CURRMASK}
+  fi
+  #if [[ -f "${HPCTOYS_ROOT}/opt/openssl/bin/openssl" ]]; then
+  #  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HPCTOYS_ROOT}/opt/openssl/lib
+  #fi
+  # sets pip to default to --user which installs in PYTHONUSERBASE
+  export PIP_USER=yes
+  export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+}
+
+export -f echoerr
+export -f initLpython
+export -f loadLmod
+
 
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)
@@ -73,7 +103,7 @@ if [[ "$EUID" -ne 0 ]]; then
     export PATH=$PATH:${GR}/sbin
   fi
   # Generic Environment variables 
-  export PATH=${GR}/bin:~/.local/bin:${GR}/opt/python/bin:${PATH}
+  export PATH=${GR}/bin:~/.local/bin:${PATH}
   if [[ -d ${GR}/opt/miniconda ]]; then
     export PATH=${PATH}:${GR}/opt/miniconda/bin
   fi 
@@ -93,11 +123,10 @@ if [[ "$EUID" -ne 0 ]]; then
     export SPACK_ROOT=/home/exacloud/software/spack
     . ${SPACK_ROOT}/share/spack/setup-env.sh
     if ! [[ -f  ~/.config/hpctoys/spack_lmod_bash ]]; then 
-       printf "configure Spack environment ... "
-       echo "$(spack location -i lmod)/lmod/lmod/init/bash" > ~/.config/hpctoys/spack_lmod_bash
-       echo "Done!"
-    fi 
-    . $(cat ~/.config/hpctoys/spack_lmod_bash)
+       echo "Spack environment not setup, run hpctoys installer... "
+    else 
+       . $(cat ~/.config/hpctoys/spack_lmod_bash)
+    fi
   fi
   # Easybuild Settings 
   EASYBUILD_JOB_CORES=4

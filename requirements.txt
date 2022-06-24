@@ -1,3 +1,10 @@
-# ensure that <37 is installed for py3.6 compatibily 
-cryptography==36.0.0
-
+# ensure that <37 is installed only for py3.6 compatibily 
+#cryptography==36.0.0
+numpy
+pandas
+textual
+rich
+paramiko
+pyyaml
+pythondialog
+easybuild

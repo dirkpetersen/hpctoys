@@ -223,16 +223,17 @@ lpython() {
 # libffi-devel is needed to compile _ctypes
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
+cd ${MYTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
-  lmodLoad gcc libffi sqlite ncurses readline
+  loadLmod gcc
+  #libffi sqlite ncurses readline libreadline
   GCCVER=$(gcc -dumpfullversion)
   #echo -e "\n Using GCC ${GCCVER} ...\n"
   if [[ $(intVersion ${GCCVER}) -ge $(intVersion "8.1.0") ]]; then
-    echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
-    COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
+    echo -e "\n *** compiling Python ${VER}${VER_B} with optimizations using GCC ${GCCVER}\n"
+    EXTRA_TUNING_OPTIONS="--enable-optimizations" #--disable-test-modules"
     sleep 2
   fi
-  cd ${MYTMP}
   if [[ -d ${HPCTOYS_ROOT}/opt/openssl/ssl ]]; then
     export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
   fi
@@ -241,29 +242,45 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   curl -OkL ${DURL}
   if [[ -f Python-${VER}${VER_B}.tar.xz ]]; then 
     tar xf Python-${VER}${VER_B}.tar.xz           
-    cd Python-${VER}${VER_B}                     
-    addLineToFile '_socket socketmodule.c' Modules/Setup
-    addLineToFile 'OPENSSL=${HPCTOYS_ROOT}/opt/openssl' Modules/Setup
-    addLineToFile '_ssl _ssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libssl.a -Wl,--exclude-libs,libssl.a -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
-    addLineToFile '_hashlib _hashopenssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
-    ./configure --prefix "${TMPDIR}/hpctoys/lpython" \
-                --with-openssl=${OPENSSL_ROOT} ${COMP_WITH_OPT} 
-    make -j 4
+    cd Python-${VER}${VER_B}
+    if [[ -d ${HPCTOYS_ROOT}/opt/openssl/lib ]]; then 
+      export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HPCTOYS_ROOT}/opt/openssl/lib
+      addLineToFile '_socket socketmodule.c' Modules/Setup
+      addLineToFile 'OPENSSL=${HPCTOYS_ROOT}/opt/openssl' Modules/Setup
+      #if [[ -z ${EXTRA_TUNING_OPTIONS} ]]; then
+        # this builds statically linked
+        addLineToFile '_ssl _ssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libssl.a -Wl,--exclude-libs,libssl.a -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
+        addLineToFile '_hashlib _hashopenssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
+      #else
+        #addLineToFile '_ssl _ssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) $(OPENSSL_LIBS)' Modules/Setup
+        #addLineToFile '_hashlib _hashopenssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) -lcrypto' Modules/Setup
+      #fi
+    fi
+    ./configure --prefix="${TMPDIR}/hpctoys/lpython" \
+                --with-openssl="${OPENSSL_ROOT}" ${EXTRA_TUNING_OPTIONS} \
+               2>&1 | tee configure.output
+    make -j 4 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
-    make install
+    make install 2>&1 | tee make.install.output
     if [[ -f ${TMPDIR}/hpctoys/lpython/bin/python${VER::-2} ]]; then
+      ### fix permissions so others can overwrite the cache
+      chmod -R go+w ${TMPDIR}/hpctoys/lpython 
+      ### addional packages install
+      "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" \
+               -m pip install --upgrade pip
+      echo -e "\n *** installing additional packages from requirements.txt ...\n"
+      "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" \
+               -m pip install -r ${HPCTOYS_ROOT}/requirements.txt
       cd "${TMPDIR}/hpctoys"
       echo -e "\n *** creating archive lpython-${VER}.tar.xz ...\n"
       tar cfvJ lpython-${VER}.tar.xz ./lpython
       FSIZE=$(stat -c%s lpython-${VER}.tar.xz)
-      if [[ (( ${FSIZE} -gt 30000000 )) ]]; then     
+      if [[ (( ${FSIZE} -gt 50000000 )) ]]; then     
         echo -e "\n *** copying archive ...\n"
         mv -vf lpython-${VER}.tar.xz ${HPCTOYS_ROOT}/opt/
-        ln -sf "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" "${HPCTOYS_ROOT}/bin/python${VER::-2}"
+        #ln -sf "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" "${HPCTOYS_ROOT}/bin/python${VER::-2}"
         ### addional packages in ${HPCTOYS_ROOT}/opt/python
-        lpip install --upgrade pip
-        lpip install openstackclient \
-             pyyaml pandas paramiko pythondialog easybuild
+        lpip install -r ${HPCTOYS_ROOT}/requirements_opt.txt        
       else
         echo -e "\n *** There was a problem installing Python ${VER}.\n"
         ERRLIST+=" Python"

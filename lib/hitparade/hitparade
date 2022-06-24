@@ -6,6 +6,6 @@ unset PYTHONHOME
 
 export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 target=$(readlink -f $0)
-/usr/bin/python3 ${target}.py $@
+lpython ${target}.py $@
 
 

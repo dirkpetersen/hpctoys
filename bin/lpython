@@ -1,34 +1,8 @@
 #! /bin/bash
 
-PYVER="3.11.0"
-MYPY="/tmp/hpctoys/lpython/bin/python${PYVER::-2}"
-MYPYLIB="/tmp/hpctoys/lpython/lib/libpython${PYVER::-2}.a"
-PYARCHIVE="${HPCTOYS_ROOT}/opt/lpython-${PYVER}.tar.xz"
-CURRMASK=$(umask)
-
-echoerr(){
-  # echo to stderr instead of stdout
-  echo -e "$@" 1>&2
-}
-
-if [[ -z ${HPCTOYS_ROOT} ]]; then 
-  echoerr " HPCTOYS_ROOT not set, exiting..."
-  exit
-fi
-
-if ! [[ -f "${MYPY}" && -f "${MYPYLIB}" ]]; then
-  echoerr " preparing local Python ${PYVER} installation ..."
-  umask 0000
-  mkdir -p "${TMPDIR}/hpctoys"
-  tar xf ${PYARCHIVE} -C "${TMPDIR}/hpctoys"
-  umask ${CURRMASK}
-fi
-
-# sets pip to default to --user which installs in PYTHONUSERBASE
-export PIP_USER=yes
-export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+initLpython
 
 scriptn=${0##*/}
 
-${MYPY} $@
+${LPYTHON} $@
 

@@ -1,12 +1,9 @@
 #! /bin/bash
 
-if [[ -z ${HPCTOYS_ROOT} ]]; then
-  echo "HPCTOYS_ROOT not set, exiting..."
-  exit
-fi
+initLpython
 
-#export PIP_USER=yes
-export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+export PIP_USER=no
+#export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 
 scriptn=${0##*/}
 cmdline="$@"

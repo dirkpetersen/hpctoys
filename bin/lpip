@@ -1,12 +1,6 @@
 #! /bin/bash
 
-echoerr(){
-  # echo to stderr instead of stdout
-  echo -e "$@" 1>&2
-}
-
-export PIP_USER=yes
-export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+initLpython
 
 lpython -m "pip" $@
 
