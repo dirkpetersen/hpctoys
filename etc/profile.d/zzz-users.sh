@@ -32,6 +32,9 @@ readConfigOrDefault() {
     return "$2"
   fi
 }
+intVersion() { 
+  echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; 
+}
 lmodLoad() {
   # capture both STDOUT and STDERR from ml avail 
   if [[ -z $1 ]]; then

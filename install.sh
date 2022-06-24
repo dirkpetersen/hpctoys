@@ -226,11 +226,11 @@ VER_B="b3" # beta ver such as b1, b2 or b3
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   lmodLoad gcc libffi sqlite ncurses readline
   GCCVER=$(gcc -dumpfullversion)
-  echo -e "\n Using GCC ${GCCVER} ...\n"
-  sleep 2
-  if [[ ${GCCVER} > '8.1.0' ]]; then
+  #echo -e "\n Using GCC ${GCCVER} ...\n"
+  if [[ $(intVersion ${GCCVER}) -ge $(intVersion "8.1.0") ]]; then
     echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
     COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
+    sleep 2
   fi
   cd ${MYTMP}
   if [[ -d ${HPCTOYS_ROOT}/opt/openssl/ssl ]]; then
