@@ -223,13 +223,15 @@ lpython() {
 # libffi-devel is needed to compile _ctypes
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
-lmodLoad gcc libffi sqlite ncurses readline
-GCCVER=$(gcc -dumpfullversion)
-if [[ ${GCCVER} > '8.1.0' ]]; then 
-  echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
-  COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
-fi
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
+  lmodLoad gcc libffi sqlite ncurses readline
+  GCCVER=$(gcc -dumpfullversion)
+  echo -e "\n Using GCC ${GCCVER} ...\n"
+  sleep 2
+  if [[ ${GCCVER} > '8.1.0' ]]; then
+    echo -e "\n *** compiling with optimizations using GCC ${GCCVER}\n"
+    COMP_WITH_OPT="--enable-optimizations --disable-test-modules"
+  fi
   cd ${MYTMP}
   if [[ -d ${HPCTOYS_ROOT}/opt/openssl/ssl ]]; then
     export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
