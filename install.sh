@@ -1,5 +1,12 @@
 #! /bin/bash
 
+CURRDIR=$(pwd)
+if [[ -f ${BASH_SOURCE} ]]; then
+  cd $(dirname "$(realpath "${BASH_SOURCE}")")
+else
+  echo 'Your shell does not support ${BASH_SOURCE}. Please use "bash" to setup hpctoys.'
+  exit
+fi
 if ! [[ -f etc/profile.d/zzz-users.sh ]]; then 
   echo "You need to switch to the root 
     of the Hpctoys Git repos before running this script."
@@ -7,7 +14,6 @@ if ! [[ -f etc/profile.d/zzz-users.sh ]]; then
 fi
 . etc/profile.d/zzz-users.sh
 MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
-CURRDIR=$(pwd)
 SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
@@ -299,7 +305,63 @@ fi
 }
 
 cd ${CURRDIR}
-bash setdefaults.sh ${MYTMP}
+
+defaults_group() {
+# default settings for all users who share this HPC Toys install
+
+  if [[ -f ${HPCTOYS_ROOT}/custom.env ]]; then
+    . ${HPCTOYS_ROOT}/custom.env
+  fi
+
+  # if spack exists, configure it for the group
+  if [[ -d ${SPACK_ROOT} ]]; then
+    . ${SPACK_ROOT}/share/spack/setup-env.sh
+    if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash ]]; then
+       printf "configure Spack environment ... "
+       echo "${SPACK_ROOT}" > \
+              ${HPCTOYS_ROOT}/etc/hpctoys/spack_root
+
+       echo "$(spack location -i lmod)/lmod/lmod/init/bash" > \
+              ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash
+       echo "Done!"
+    fi
+    . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
+  fi
+
+}
+defaults_user() {
+# default settings for the current user
+
+if [[ -f ~/.profile ]]; then
+  PROF=~/.profile
+  MYRC=~/.bashrc
+  if [[ -f ~/.zshrc ]]; then
+    MYRC=~/.zshrc
+  fi
+elif [[ -f ~/.bash_profile ]]; then
+  PROF=~/.bash_profile
+  MYRC=~/.bashrc
+else
+  PROF=~/.profile_hpctoys_template
+  MYRC=~/.bashrc_hpctoys_template
+  echo "No profile exists, using ${PROF} for now !"
+fi
+
+# Midnight Commander defaults
+if ! [[ -d ~/.config/mc ]]; then
+  mkdir -p ~/.config/mc
+  echo "[Midnight-Commander]" > ~/.config/mc/ini
+  printf "skin=darkfar" >> ~/.config/mc/ini
+fi
+
+# initialize HPC Toys at login 
+addLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-users.sh" ${MYRC}
+
+# Keychain defaults
+addLineToFile 'eval $(keychain --eval id_rsa)' ${PROF}
+}
+
+cd ${CURRDIR}
 
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
@@ -312,6 +374,8 @@ if [[ -z ${SUBCMD} ]]; then
   rclone
   miniconda
   lpython
+  defaults_group
+  defaults_user
 elif [[ ${SUBCMD} =~ ^(jq|keychain|dialog|awscli2|openssl|mc|rclone|miniconda|lpython|)$ ]]; then
   ${SUBCMD} "$@"
 else
@@ -327,4 +391,10 @@ else
   echo "Errors in these installations: ${ERRLIST}"
   echo "Check ${MYTMP} for troubleshooting"
 fi
+
+
+
+
+
+
 

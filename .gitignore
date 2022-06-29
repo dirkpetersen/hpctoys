@@ -2,6 +2,8 @@
 opt/
 etc/hpctoys/
 tmp/
+custom.env
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

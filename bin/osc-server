@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# create openstack server and network dependencies 
+# create openstack server and network dependencies
 
 DEFIMAGE="Ubuntu-22.04-LTS"
 DEFIMAGEURL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64-disk-kvm.img"
@@ -12,6 +12,8 @@ OPT_i="${DEFIMAGE}" # --image
 #
 SCR=${0##*/}
 SUBCMD=$1
+
+initLpython
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
