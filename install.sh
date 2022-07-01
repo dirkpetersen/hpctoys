@@ -37,10 +37,24 @@ mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
 # installing jq, the json processor 
 jq() {
 if ! inpath 'jq'; then
-  DURL="https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64"
+  VER="1.6"
+  echoerr "\n * Installing 'jq' ${VER} ... *\n"
+  DURL="https://github.com/stedolan/jq/releases/download/jq-${VER}/jq-linux64"
   curl -kL ${DURL} -o ${HPCTOYS_ROOT}/opt/other/bin/jq
   chmod +x ${HPCTOYS_ROOT}/opt/other/bin/jq
   ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/jq ${HPCTOYS_ROOT}/bin/jq
+fi
+}
+
+# installing yq, the yaml processor
+yq() {
+if ! inpath 'yq'; then
+  VER=4.25.3
+  echoerr "\n * Installing 'yq' ${VER} ... *\n"
+  DURL="https://github.com/mikefarah/yq/releases/download/v${VER}/yq_linux_amd64"
+  curl -kL ${DURL} -o ${HPCTOYS_ROOT}/opt/other/bin/yq
+  chmod +x ${HPCTOYS_ROOT}/opt/other/bin/yq
+  ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/yq ${HPCTOYS_ROOT}/bin/yq
 fi
 }
 
@@ -48,6 +62,7 @@ fi
 keychain() {
 if ! inpath 'keychain'; then
   VER="2.8.5"
+  echoerr "\n * Installing 'keychain' ${VER} ... *\n"
   cd ${MYTMP}
   DURL="https://github.com/funtoo/keychain/archive/refs/tags/${VER}.tar.gz"
   curl -OkL ${DURL}
@@ -68,6 +83,7 @@ fi
 # installing dialog util for ncurses GUI 
 dialog() {
 if ! inpath 'dialog'; then
+  echoerr "\n * Installing 'dialog' ... *\n"
   cd ${MYTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
   curl -OkL ${DURL}
@@ -89,6 +105,7 @@ fi
 # aws cli version 2 
 awscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
+  echoerr "\n * Installing 'awscli2' ${VER} ... *\n"
   cd ${MYTMP}
   DURL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
   curl -OkL ${DURL}
@@ -107,6 +124,7 @@ fi
 openssl() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
   VER="1_1_1p" 
+  echoerr "\n * Installing 'openssl' ${VER} ... *\n"
   cd ${MYTMP}
   DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
   echo -e "\n *** Installing ${DURL} ...\n"
@@ -122,8 +140,10 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
     ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
     rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
     if [[ -d /etc/pki/tls/certs ]]; then
+      # RHEL systems 
       ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
     else
+      # Xbuntu systems
       ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
     fi
   else
@@ -140,6 +160,7 @@ mc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
   # first install s-lang dependency
+  echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
   VER="2.3.2"
   cd ${MYTMP}
   DURL=https://www.jedsoft.org/releases/slang/slang-${VER}.tar.bz2
@@ -159,6 +180,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   fi
   # then install MC
   VER="4.8.26" # .27 and .28 fail with s-lang compile errors
+  echoerr "\n * Installing 'mc' ${VER} ... *\n"
   cd ${MYTMP}
   DURL="http://ftp.midnight-commander.org/mc-${VER}.tar.bz2"
   echo -e "\n *** Installing ${DURL} ...\n"
@@ -187,6 +209,7 @@ fi
 # Rclone 
 rclone() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
+  echoerr "\n * Installing 'rclone' ... *\n"
   cd ${MYTMP}
   DURL="https://downloads.rclone.org/rclone-current-linux-amd64.zip"
   echo -e "\n *** Installing ${DURL} ...\n"
@@ -210,6 +233,7 @@ fi
 # Miniconda
 miniconda() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
+  echoerr "\n * Installing 'miniconda' ... *\n"
   cd ${MYTMP}
   DURL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
   echo -e "\n *** Installing ${DURL} ...\n"
@@ -224,13 +248,13 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
 fi
 }
 
-# Python
+# a special Python for a user group that is optimzed and locally cached. 
 lpython() {
-# libffi-devel is needed to compile _ctypes
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
 cd ${MYTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
+  echoerr "\n * Installing 'lpython' ${VER}${VER_B} ... *\n"
   loadLmod gcc
   #libffi sqlite ncurses readline libreadline
   GCCVER=$(gcc -dumpfullversion)
@@ -266,6 +290,12 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     fi
     ./configure --prefix="${TMPDIR}/hpctoys/lpython" \
          ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
+    # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
+    SEA='    return joinuser("~", ".local")'
+    REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
+    replaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
+    replaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
+  exit
     make -j 4 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install 2>&1 | tee make.install.output
@@ -305,10 +335,11 @@ fi
 }
 
 cd ${CURRDIR}
-
+##################### setting default config  ####################################
 defaults_group() {
 # default settings for all users who share this HPC Toys install
 
+  # a group administrator can activate custom.env
   if [[ -f ${HPCTOYS_ROOT}/custom.env ]]; then
     . ${HPCTOYS_ROOT}/custom.env
   fi
@@ -354,18 +385,25 @@ if ! [[ -d ~/.config/mc ]]; then
   printf "skin=darkfar" >> ~/.config/mc/ini
 fi
 
-# initialize HPC Toys at login 
+# initialize HPC Toys variables and paths for non-login shell (batch mode)
 addLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-users.sh" ${MYRC}
 
-# Keychain defaults
+# Keychain defaults for interactive login shells
 addLineToFile 'eval $(keychain --eval id_rsa)' ${PROF}
 }
 
-cd ${CURRDIR}
+########### settings requiring user input ##################################  
+questions_user() {
 
+echo -e "\n Installer and default settings finished, asking a few questions"
+
+}
+
+cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
   jq
+  yq
   keychain
   dialog
   awscli2
@@ -376,7 +414,8 @@ if [[ -z ${SUBCMD} ]]; then
   lpython
   defaults_group
   defaults_user
-elif [[ ${SUBCMD} =~ ^(jq|keychain|dialog|awscli2|openssl|mc|rclone|miniconda|lpython|)$ ]]; then
+  questions_user
+elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|awscli2|openssl|mc|rclone|miniconda|lpython|)$ ]]; then
   ${SUBCMD} "$@"
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
@@ -391,10 +430,5 @@ else
   echo "Errors in these installations: ${ERRLIST}"
   echo "Check ${MYTMP} for troubleshooting"
 fi
-
-
-
-
-
-
+cd ${CURRDIR}
 

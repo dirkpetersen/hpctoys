@@ -2,8 +2,9 @@
 #cryptography==36.0.0
 numpy
 pandas
-textual
 rich
+rich-cli
+textual
 paramiko
 pyyaml
 pythondialog

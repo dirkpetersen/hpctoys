@@ -31,7 +31,14 @@ addLineToFile() {
 addLineBelowLineToFile() {
   # addLineBelowLineToFile <add-this> <below-this> <filename>
   if ! grep "^$1" "$3" > /dev/null; then
-    sed -i "/^$2*/a $1" "$3"
+    sed -i "|^$2*|a $1" "$3"
+  fi
+}
+replaceCommentLineInFile() {
+  MSG="replaceCommentLineInFile <line-to-be-commented> <replacement> <file-that-exists>"
+  [[ ! -f $3 ]] && echo ${MSG} && return 1
+  if ! grep "^$2" "$3" > /dev/null; then
+    sed -i "s|^$1|#$1\n$2|g" "$3"
   fi
 }
 readConfigOrDefault() {
@@ -162,17 +169,18 @@ if [[ "$EUID" -ne 0 ]]; then
   if ingroup "${GID_SUPERUSERS}"; then 
     appendPath "${GR}/sbin"
   fi
-  prependPath "${GR}/bin" "~/.local/bin"
+  prependPath "${GR}/bin" "${GR}/opt/python/bin"
+  appendPath "~/.local/bin"
   if [[ -d ${GR}/opt/miniconda ]]; then
     appendPath ${GR}/opt/miniconda/bin
-  fi 
-
+  fi
+   
   # replace dark blue color in terminal and VI
   COL=$(dircolors)
   eval ${COL/di=01;34/di=01;36}
-  if ! [[ -f ~/.vimrc ]]; then
-    echo -e "syntax on\ncolorscheme desert" > ~/.vimrc
-  fi
+  #if ! [[ -f ~/.vimrc ]]; then
+  #  echo -e "syntax on\ncolorscheme desert" > ~/.vimrc
+  #fi
   
   # *** Spack settings ***
   if [[ -z ${SPACK_ROOT} ]]; then
