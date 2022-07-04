@@ -43,6 +43,29 @@ if [[ $? -eq 0 ]]; then
   exit
 fi
 
+
+# installing dialog util for ncurses GUI
+idialog() {
+if ! inpath 'dialog'; then
+  echoerr "\n * Installing 'dialog' ... *\n"
+  cd ${MYTMP}
+  DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
+  curl -OkL ${DURL}
+  if [[ -f dialog.tar.gz ]]; then
+    tar xf dialog.tar.gz
+    cd dialog-*
+    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
+    make -j 4
+    make install
+    ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
+  else
+    echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Dialog"
+  fi
+  cd ${CURRDIR}
+fi
+}
+
 # installing jq, the json processor 
 ijq() {
 if ! inpath 'jq'; then
@@ -115,28 +138,6 @@ if ! inpath 'gh'; then
 fi
 }
 
-# installing dialog util for ncurses GUI 
-idialog() {
-if ! inpath 'dialog'; then
-  echoerr "\n * Installing 'dialog' ... *\n"
-  cd ${MYTMP}
-  DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
-  curl -OkL ${DURL}
-  if [[ -f dialog.tar.gz ]]; then
-    tar xf dialog.tar.gz
-    cd dialog*
-    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
-    make -j 4
-    make install
-    ln -s ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" Dialog"
-  fi
-  cd ${CURRDIR}
-fi
-}
-
 # aws cli version 2 
 iawscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
@@ -155,40 +156,6 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then
 fi
 }
 
-# OpenSSL
-iopenssl() {
-if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
-  VER="1_1_1p" 
-  echoerr "\n * Installing 'openssl' ${VER} ... *\n"
-  cd ${MYTMP}
-  DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
-  echo -e "\n *** Installing ${DURL} ...\n"
-  curl -OkL ${DURL}
-  if [[ -f OpenSSL_${VER}.tar.gz ]]; then
-    tar xf OpenSSL_${VER}.tar.gz
-    cd openssl-OpenSSL_${VER}
-    ./Configure --prefix=${HPCTOYS_ROOT}/opt/openssl \
-             --openssldir=${HPCTOYS_ROOT}/opt/openssl/ssl \
-             linux-x86_64 
-    make -j 4
-    make install
-    ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
-    rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
-    if [[ -d /etc/pki/tls/certs ]]; then
-      # RHEL systems 
-      ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
-    else
-      # Xbuntu systems
-      ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
-    fi
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" OpenSSL"
-  fi
-  export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
-  cd ${CURRDIR}
-fi
-}
 
 # Midnight Commander 
 imc() {
@@ -279,6 +246,41 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" Miniconda"
   fi
+  cd ${CURRDIR}
+fi
+}
+
+# OpenSSL needed for lpython
+iopenssl() {
+if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
+  VER="1_1_1p"
+  echoerr "\n * Installing 'openssl' ${VER} ... *\n"
+  cd ${MYTMP}
+  DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
+  echo -e "\n *** Installing ${DURL} ...\n"
+  curl -OkL ${DURL}
+  if [[ -f OpenSSL_${VER}.tar.gz ]]; then
+    tar xf OpenSSL_${VER}.tar.gz
+    cd openssl-OpenSSL_${VER}
+    ./Configure --prefix=${HPCTOYS_ROOT}/opt/openssl \
+             --openssldir=${HPCTOYS_ROOT}/opt/openssl/ssl \
+             linux-x86_64
+    make -j 4
+    make install
+    ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
+    rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    if [[ -d /etc/pki/tls/certs ]]; then
+      # RHEL systems
+      ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    else
+      # Xbuntu systems
+      ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+    fi
+  else
+    echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" OpenSSL"
+  fi
+  export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
   cd ${CURRDIR}
 fi
 }
