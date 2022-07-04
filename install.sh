@@ -17,6 +17,7 @@ MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
 SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
+DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
@@ -33,6 +34,14 @@ fi
 umask 0000
 # bin folder for other single binaries
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
+
+echoerr "\n *** Preparing Installation of HPC Toys ***"
+echoerr " *** Waiting for 10 sec *** ..."
+read -t 10 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
+if [[ $? -eq 0 ]]; then
+  echoerr " Setup interrupted, exiting ...\n"
+  exit
+fi
 
 # installing jq, the json processor 
 ijq() {
@@ -508,8 +517,8 @@ clear
 
 iquestions_user() {
 
-
-export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+#Examples:
+#https://www.geeksforgeeks.org/creating-dialog-boxes-with-the-dialog-tool-in-linux/
 
 # QST should not be more than 50 chars wide
 
@@ -687,7 +696,6 @@ read -n 1 -r -s -p $'\n Press enter to continue...\n'
 
 }
 
-
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
@@ -705,7 +713,8 @@ if [[ -z ${SUBCMD} ]]; then
   idefaults_group
   idefaults_user
   iquestions_user
-elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
+elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|\
+     mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
