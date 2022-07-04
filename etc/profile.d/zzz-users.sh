@@ -4,7 +4,6 @@
 # cd hpctoys
 # install.sh
 
-
 GID_SUPERUSERS=111111
 UID_APPMGR=222222
 export LPYTHONVER="3.11.0"
@@ -24,20 +23,20 @@ mkdirIf(){
 }
 addLineToFile() {  
   # addLineToFile <line> <filename>
-  if ! grep "^$1" "$2" > /dev/null; then
+  if ! grep -q "^$1" "$2"; then
     echo "$1" >> "$2"
   fi
 }
 addLineBelowLineToFile() {
   # addLineBelowLineToFile <add-this> <below-this> <filename>
-  if ! grep "^$1" "$3" > /dev/null; then
+  if ! grep -q "^$1" "$3"; then
     sed -i "|^$2*|a $1" "$3"
   fi
 }
 replaceCommentLineInFile() {
-  MSG="replaceCommentLineInFile <line-to-be-commented> <replacement> <file-that-exists>"
+  MSG="${FUNCNAME[0]} <line-to-be-commented> <replacement-line> <file-that-exists>"
   [[ ! -f $3 ]] && echo ${MSG} && return 1
-  if ! grep "^$2" "$3" > /dev/null; then
+  if ! grep -q "^$2" "$3"; then
     sed -i "s|^$1|#$1\n$2|g" "$3"
   fi
 }
@@ -52,6 +51,7 @@ readConfigOrDefault() {
   fi
 }
 appendPath() {
+  # remove from PATH and add to end of PATH 
   for ARG in "$@"; do
     PATH=${PATH//":${ARG}"/} #delete any instances in the middle or at the end
     PATH=${PATH//"${ARG}:"/} #delete any instances at the beginning
@@ -61,6 +61,7 @@ appendPath() {
   done
 }
 prependPath() {
+  # remove from PATH and add to beginning of PATH
   for ((i=$#; i>0; i--)); do
     ARG=${!i}
     PATH=${PATH//":${ARG}"/} #delete any instances in the middle or at the end
@@ -71,10 +72,12 @@ prependPath() {
   done
 }
 intVersion() { 
+  # convert version to integer to allow comparison of versions 
   echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; 
 }
 loadLmod() {
-  # capture both STDOUT and STDERR from ml avail 
+  # load last found module that starts with $1 
+  # (capture both STDOUT and STDERR from 'ml avail') 
   if [[ -z $1 ]]; then
     echo "please enter start of your module names, e.g. gcc libffi"
     return 1
@@ -137,12 +140,15 @@ initLpython() {
   export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 }
 
+# needed if used inside functions
+# list all functions with "declare -F"
 export -f echoerr
 export -f initLpython
+export -f addLineToFile
 export -f loadLmod
 export -f prependPath
 export -f appendPath
-
+export -f readConfigOrDefault
 
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)
@@ -174,13 +180,15 @@ if [[ "$EUID" -ne 0 ]]; then
   if [[ -d ${GR}/opt/miniconda ]]; then
     appendPath ${GR}/opt/miniconda/bin
   fi
-   
+  
   # replace dark blue color in terminal and VI
-  COL=$(dircolors)
-  eval ${COL/di=01;34/di=01;36}
-  #if ! [[ -f ~/.vimrc ]]; then
-  #  echo -e "syntax on\ncolorscheme desert" > ~/.vimrc
-  #fi
+  COL=$(readConfigOrDefault "dircolors")
+  if [[ -z ${COL} ]]; then
+    COL=$(dircolors)
+    eval ${COL/di=01;34/di=01;36}
+  else
+    eval ${COL}
+  fi
   
   # *** Spack settings ***
   if [[ -z ${SPACK_ROOT} ]]; then

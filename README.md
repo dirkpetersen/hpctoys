@@ -99,3 +99,13 @@ remove key os_key_xxxxx ...
 
 All resources purged from current project !
 ```
+
+## Background information 
+
+### per-user-tmp
+
+hpctoys lpython distribution shares /tmp among multiple users. 
+This can be a security concern in larger environments. 
+You can use [this method](http://tech.ryancox.net/2013/07/per-user-tmp-and-devshm-directories.html) 
+to isolate /tmp on login nodes.
+

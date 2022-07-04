@@ -35,7 +35,7 @@ umask 0000
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
 
 # installing jq, the json processor 
-jq() {
+ijq() {
 if ! inpath 'jq'; then
   VER="1.6"
   echoerr "\n * Installing 'jq' ${VER} ... *\n"
@@ -47,7 +47,7 @@ fi
 }
 
 # installing yq, the yaml processor
-yq() {
+iyq() {
 if ! inpath 'yq'; then
   VER=4.25.3
   echoerr "\n * Installing 'yq' ${VER} ... *\n"
@@ -59,7 +59,7 @@ fi
 }
 
 # Keychain
-keychain() {
+ikeychain() {
 if ! inpath 'keychain'; then
   VER="2.8.5"
   echoerr "\n * Installing 'keychain' ${VER} ... *\n"
@@ -80,8 +80,34 @@ if ! inpath 'keychain'; then
 fi
 }
 
+# Github CLI
+igithub() {
+if ! inpath 'gh'; then
+  VER="2.13.0"
+  echoerr "\n * Installing 'github cli' ${VER} ... *\n"
+  cd ${MYTMP}
+  DURL="https://github.com/cli/cli/releases/download/v${VER}/gh_${VER}_linux_amd64.tar.gz"
+  curl -OkL ${DURL}
+  if [[ -f gh_${VER}_linux_amd64.tar.gz ]]; then
+    tar xf gh_${VER}_linux_amd64.tar.gz
+    cd gh_${VER}_linux_amd64
+    #echo $MYTMP
+    #exit
+    cp -f ./bin/* ${HPCTOYS_ROOT}/opt/other/bin/
+    mkdir -p ${HPCTOYS_ROOT}/opt/other/share/man/man1
+    cp -f ./share/man/man1/* ${HPCTOYS_ROOT}/opt/other/share/man/man1/
+    chmod +x ${HPCTOYS_ROOT}/opt/other/bin/gh
+    ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/gh ${HPCTOYS_ROOT}/bin/gh
+  else
+    echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Github"
+  fi
+  cd ${CURRDIR}
+fi
+}
+
 # installing dialog util for ncurses GUI 
-dialog() {
+idialog() {
 if ! inpath 'dialog'; then
   echoerr "\n * Installing 'dialog' ... *\n"
   cd ${MYTMP}
@@ -103,7 +129,7 @@ fi
 }
 
 # aws cli version 2 
-awscli2() {
+iawscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
   echoerr "\n * Installing 'awscli2' ${VER} ... *\n"
   cd ${MYTMP}
@@ -121,7 +147,7 @@ fi
 }
 
 # OpenSSL
-openssl() {
+iopenssl() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
   VER="1_1_1p" 
   echoerr "\n * Installing 'openssl' ${VER} ... *\n"
@@ -156,7 +182,7 @@ fi
 }
 
 # Midnight Commander 
-mc() {
+imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
   # first install s-lang dependency
@@ -207,7 +233,7 @@ fi
 }
 
 # Rclone 
-rclone() {
+irclone() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
   echoerr "\n * Installing 'rclone' ... *\n"
   cd ${MYTMP}
@@ -231,7 +257,7 @@ fi
 }
 
 # Miniconda
-miniconda() {
+iminiconda() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
   echoerr "\n * Installing 'miniconda' ... *\n"
   cd ${MYTMP}
@@ -248,8 +274,9 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
 fi
 }
 
+
 # a special Python for a user group that is optimzed and locally cached. 
-lpython() {
+ilpython() {
 VER="3.11.0"
 VER_B="b3" # beta ver such as b1, b2 or b3
 cd ${MYTMP}
@@ -295,7 +322,6 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
-  exit
     make -j 4 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install 2>&1 | tee make.install.output
@@ -334,9 +360,10 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
 fi
 }
 
+
 cd ${CURRDIR}
 ##################### setting default config  ####################################
-defaults_group() {
+idefaults_group() {
 # default settings for all users who share this HPC Toys install
 
   # a group administrator can activate custom.env
@@ -360,7 +387,7 @@ defaults_group() {
   fi
 
 }
-defaults_user() {
+idefaults_user() {
 # default settings for the current user
 
 if [[ -f ~/.profile ]]; then
@@ -378,6 +405,18 @@ else
   echo "No profile exists, using ${PROF} for now !"
 fi
 
+# initialize HPC Toys variables and paths for non-login shell (batch mode)
+addLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-users.sh" ${MYRC}
+
+# replace dark blue color in vim and dir list
+COL=$(dircolors)
+NEWCOL=${COL/di=01;34/di=01;36}
+eval ${NEWCOL}
+echo ${NEWCOL} > "${HPCTOYS_ROOT}/etc/hpctoys/dircolors"
+if ! [[ -f ~/.vimrc ]]; then
+  echo -e "syntax on\ncolorscheme desert" > ~/.vimrc
+fi
+
 # Midnight Commander defaults
 if ! [[ -d ~/.config/mc ]]; then
   mkdir -p ~/.config/mc
@@ -385,38 +424,289 @@ if ! [[ -d ~/.config/mc ]]; then
   printf "skin=darkfar" >> ~/.config/mc/ini
 fi
 
-# initialize HPC Toys variables and paths for non-login shell (batch mode)
-addLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-users.sh" ${MYRC}
+# git defaults 
+if [[ -z $(git config --global pull.rebase) ]]; then
+  git config --global pull.rebase false
+fi
+if [[ -z $(git config --global push.default) ]]; then
+  git config --global push.default simple
+fi
 
-# Keychain defaults for interactive login shells
-addLineToFile 'eval $(keychain --eval id_rsa)' ${PROF}
 }
+
 
 ########### settings requiring user input ##################################  
-questions_user() {
 
-echo -e "\n Installer and default settings finished, asking a few questions"
+_filesPlain() {
+MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
+[[ -z $1 ]] && echo ${MSG} && return 1
+if [[ -z $2 ]]; then
+  ls -1 $1
+else
+  CD=$(pwd)
+  cd $1
+  ls -1 $2
+  cd ${CD}
+fi
+}
+
+_isItemInList() {
+MSG="${FUNCNAME[0]} <item> <list of items>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+for X in $2; do
+  [[ "$1" == "$X" ]] && return 0
+done
+return 1
+}
+
+_inputbox() {
+#read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
+MSG="${FUNCNAME[0]} <message> <default-value>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+RES="" 
+while [[ "$RES" == "" ]]; do 
+  RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
+  RET=$?
+  #echo $RET:$RES && sleep 3
+  if [[ $RET -ne 0 ]]; then
+    clear
+    echoerr "\n Setup canceled, exiting ...\n"
+    exit
+  fi
+done
+clear
 
 }
+
+_checklist() {
+# read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
+MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+OPT=""
+RES=""
+i=0
+for E in $2; do 
+  let i++
+  if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
+    OPT+="$E $i on "
+  else 
+    OPT+="$E $i off "
+  fi  
+done
+while [[ "$RES" == "" ]]; do
+  RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
+  RET=$?
+  #echo $RET:$RES && sleep 3
+  if [[ $RET -ne 0 ]]; then
+    clear
+    echoerr "\n Setup canceled, exiting ...\n"
+    exit
+  fi
+done
+clear
+}
+
+iquestions_user() {
+
+
+export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+
+# QST should not be more than 50 chars wide
+
+# verify Github Metadata
+QST=$(cat << EOF
+No public SSH keys were found in folder ~/.ssh
+You will now be asked for a passphrase for a new ssh 
+key pair. You will need this for many services such 
+as Github.com and other cloud services. You will not
+have to re-enter this passphrase at login, except  
+after this computer has been restarted. 
+Please do not use your enterprise password NOR ENTER
+AN EMPTY PASSPHRASE UNDER ANY CIRCUMSTANCES.
+EOF
+)
+
+# available ssh keys and default keys
+KEYS=$(_filesPlain ~/.ssh "*.pub")
+SELKEYS=""
+if [[ -z ${KEYS} ]]; then
+  dialog --msgbox  "${QST}" 0 0
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+  addLineToFile 'eval $(keychain --eval id_ed25519)' ${PROF}
+  KEYS="id_ed25519.pub"
+fi 
+
+if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
+  if _isItemInList "id_ed25519.pub" "${KEYS}"; then
+    SELKEYS="id_ed25519.pub"
+  elif _isItemInList "id_rsa.pub" "${KEYS}"; then
+    SELKEYS="id_rsa.pub"
+  fi
+fi
+
+# ask which keys should be loaded in keychain/ssh-agent
+QST=$(cat << EOF
+Which of your ssh public keys should be
+loaded into your keychain and ssh-agent
+when you login? By default only the marked
+key is loaded. Please confirm.
+EOF
+)
+if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
+  _checklist "${QST}" "${KEYS}" "${SELKEYS}"
+elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
+  RES=$KEYS
+else
+  dialog --msgbox  "No *.pub keys found in ~/.ssh folder. " 0 0
+fi
+echo ${RES} > ~/.config/hpctoys/load_sshkeys
+
+# clean up existing profile from ssh-agent and keychain
+sed -i '/^eval `ssh-agent*/d' ${PROF} 
+sed -i '/^eval $(ssh-agent*/d' ${PROF}
+sed -i '/^eval $(keychain*/d' ${PROF}
+echo "eval \$(keychain --eval ${RES//.pub/})" >> ${PROF}
+
+# add each selected key to authorized_keys if not already added
+touch ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+for K in ${RES}; do
+  PK=$(cat .ssh/$K)
+  if ! grep -q "${PK}" ~/.ssh/authorized_keys; then
+    echo "${PK}" >> ~/.ssh/authorized_keys
+  fi
+done
+
+# git user.name
+QST=$(cat << EOF
+Now we need to setup git which is an essential 
+tool for every person who writes code. Please 
+enter your first and last name or confirm the 
+default setting. 
+EOF
+)
+_inputbox "${QST}" "$(git config --global user.name)"
+git config --global user.name "${RES}"
+
+
+# git user.email
+QST=$(cat << EOF
+Please enter or confirm the email address that git 
+uses for tracking when storing a new version of 
+your code. 
+This will be your work email address in most 
+cases. 
+EOF
+)
+_inputbox "${QST}" "$(git config --global user.email)"
+git config --global user.email "${RES}"
+
+
+# github.com login user
+QST=$(cat << EOF
+Please enter or confirm your Github.com login user 
+name. If you do not have a Github.com account yet, 
+please create one. HOW SELECT A GOOD LOGIN NAME ? 
+* Your github login name should be simple and easy 
+  to memorize as it is part of the github URL and 
+  others can use it to share their code with you. 
+* Use only ONE Github login and not one for each 
+  organization you work for. Github has enterprise 
+  products that can link your Github login name to 
+  the enterprise user id of your organization. 
+* Ideally you keep your ONE Github id for your 
+  entire career to ensure that ALL your 
+  contributions are recognized. 
+Go to https://github.com/join [e.g. Ctrl+Click] 
+NOW and create your github login which will take 
+about two minutes. Once you have a new login name, 
+come back here and enter it below. 
+EOF
+)
+_inputbox "${QST}" "$(readConfigOrDefault github_login)"
+echo "${RES}" > ~/.config/hpctoys/github_login
+GHL=$(cat ~/.config/hpctoys/github_login)
+echoerr " connecting to github.com/${GHL} ..."
+GHJSON=$(curl -sL https://api.github.com/users/${GHL})
+GHID=$(echo ${GHJSON} | jq -r '.id')
+GHLOG=$(echo ${GHJSON} | jq -r '.login')
+GHNAM=$(echo ${GHJSON} | jq -r '.name')
+GHORG=$(echo ${GHJSON} | jq -r '.company')
+GHLOC=$(echo ${GHJSON} | jq -r '.location')
+GHUPD=$(echo ${GHJSON} | jq -r '.updated_at')
+
+
+# verify Github Metadata 
+QST=$(cat << EOF
+${GHLOG}, you are the ${GHID}th Github.com 
+user and you should have these 3 fields filled 
+out in your public Github profile: 
+
+ Your Full Name:  ${GHNAM} 
+   Organization:  ${GHORG} 
+       Location:  ${GHLOC} 
+
+If any of this information is missing please go 
+back to https://github.com/settings/profile 
+[Ctrl+Click] and update your profile. 
+[last updated: ${GHUPD}]
+EOF
+)
+if [[ "${GHID}" == "null" ]]; then
+  QST="Github user ${GHL} does not exist."
+fi
+dialog --msgbox  "${QST}" 0 0
+
+# check key that should be uploaded to github
+QST=$(cat << EOF
+Which ssh public key would you like
+to use to authenticate with Github? 
+Please select one public key. Likely 
+you will just need to confirm if one 
+is already pre-selected for you.
+EOF
+)
+if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
+  _checklist "${QST}" "${KEYS}" "${SELKEYS}"
+elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
+  RES=${KEYS}
+else
+  dialog --msgbox  "No *.pub keys found in ~/.ssh folder. " 0 0
+fi
+echo ${RES} > ~/.config/hpctoys/github_sshkey
+
+echo "Please mark and copy the key (text) between the "
+echo "two -SNIP- lines, paste it at the Github page "
+echo "https://github.com/settings/ssh/new (Ctrl+Click) " 
+echo "in the 'Key' field and enter a description for "
+echo "this key in the 'Title' field. " 
+echo "------------SNIP-------------------------"
+cat ~/.ssh/${RES}
+echo "------------SNIP-------------------------"
+read -n 1 -r -s -p $'\n Press enter to continue...\n'
+
+}
+
 
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
-  jq
-  yq
-  keychain
-  dialog
-  awscli2
-  openssl
-  mc
-  rclone
-  miniconda
-  lpython
-  defaults_group
-  defaults_user
-  questions_user
-elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|awscli2|openssl|mc|rclone|miniconda|lpython|)$ ]]; then
-  ${SUBCMD} "$@"
+  ijq
+  iyq
+  ikeychain
+  idialog
+  igithub
+  iawscli2
+  iopenssl
+  imc
+  irclone
+  iminiconda
+  ilpython
+  idefaults_group
+  idefaults_user
+  iquestions_user
+elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
+  i${SUBCMD} "$@"
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
   help
