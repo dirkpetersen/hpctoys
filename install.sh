@@ -47,6 +47,25 @@ fi
 # installing dialog util for ncurses GUI
 idialog() {
 if ! inpath 'dialog'; then
+  if ! inpath 'ncurses5-config'; then
+    VER="6.3"
+    echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
+    cd ${MYTMP}
+
+    DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
+    curl -OkL ${DURL}
+    if [[ -f ncurses-${VER}.tar.gz ]]; then
+    tar xf ncurses-${VER}.tar.gz
+    cd nurses-${VER}
+    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
+    make -j 4
+    make install
+    ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses5-config \
+                  ${HPCTOYS_ROOT}/bin/ncurses5-config
+  else
+    echo "unable to download ${DURL}, exiting !"
+    ERRLIST+=" Ncurses"
+  fi
   echoerr "\n * Installing 'dialog' ... *\n"
   cd ${MYTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
@@ -65,6 +84,7 @@ if ! inpath 'dialog'; then
   cd ${CURRDIR}
 fi
 }
+
 
 # installing jq, the json processor 
 ijq() {
