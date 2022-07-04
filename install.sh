@@ -36,8 +36,8 @@ umask 0000
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
 
 echoerr "\n *** Preparing Installation of HPC Toys ***"
-echoerr " *** Waiting for 10 sec *** ..."
-read -t 10 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
+echoerr " *** Waiting for 3 sec *** ..."
+read -t 3 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
 if [[ $? -eq 0 ]]; then
   echoerr " Setup interrupted, exiting ...\n"
   exit
@@ -55,16 +55,17 @@ if ! inpath 'dialog'; then
     DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
     curl -OkL ${DURL}
     if [[ -f ncurses-${VER}.tar.gz ]]; then
-    tar xf ncurses-${VER}.tar.gz
-    cd nurses-${VER}
-    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
-    make -j 4
-    make install
-    ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses5-config \
+      tar xf ncurses-${VER}.tar.gz
+      cd nurses-${VER}
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
+      make -j 4
+      make install
+      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses5-config \
                   ${HPCTOYS_ROOT}/bin/ncurses5-config
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" Ncurses"
+    else
+      echo "unable to download ${DURL}, exiting !"
+      ERRLIST+=" Ncurses"
+    fi
   fi
   echoerr "\n * Installing 'dialog' ... *\n"
   cd ${MYTMP}
