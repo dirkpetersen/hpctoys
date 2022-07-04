@@ -56,7 +56,7 @@ if ! inpath 'dialog'; then
     curl -OkL ${DURL}
     if [[ -f ncurses-${VER}.tar.gz ]]; then
       tar xf ncurses-${VER}.tar.gz
-      cd nurses-${VER}
+      cd ncurses-${VER}
       ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
       make -j 4
       make install
