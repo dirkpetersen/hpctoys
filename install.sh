@@ -17,7 +17,7 @@ MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
 SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
-DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
@@ -60,9 +60,13 @@ if ! inpath 'dialog'; then
       ./configure --prefix=${HPCTOYS_ROOT}/opt/dialog
       make -j 4
       make install
-      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config \
-                  ${HPCTOYS_ROOT}/bin/ncurses6-config
-      NCURSESOPT='--with-curses-dir=${HPCTOYS_ROOT}/opt/dialog'
+      if [[ -f ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config ]]; then
+        ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config \
+                    ${HPCTOYS_ROOT}/bin/ncurses6-config
+        NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/dialog"
+      else
+        ERRLIST+=" Ncurses"
+      fi
     else
       echo "unable to download ${DURL}, exiting !"
       ERRLIST+=" Ncurses"
@@ -78,7 +82,11 @@ if ! inpath 'dialog'; then
     ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog ${NCURSESOPT}
     make -j 4
     make install
-    ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
+    if [[ -f ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ]]; then
+      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
+    else
+      ERRLIST+=" Dialog"
+    fi
   else
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" Dialog"
@@ -273,7 +281,9 @@ fi
 
 # OpenSSL needed for lpython
 iopenssl() {
-if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
+SSLVER=$(pkg-config --modversion openssl 2>/dev/null)
+if [[ $(intVersion ${SSLVER}) -lt $(intVersion "1.1.1") ]]; then
+#if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
   VER="1_1_1p"
   echoerr "\n * Installing 'openssl' ${VER} ... *\n"
   cd ${MYTMP}
