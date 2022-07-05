@@ -190,9 +190,31 @@ fi
 imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
-  # optionally install glib-2 > 2.30
-  GLIB2VER=$(pkg-config --modversion glib-2.0 2>/dev/null)
-  if [[ $(intVersion ${GLIB2VER}) -lt $(intVersion "2.30") ]]; then
+  export LD_LIBRARY_PATH+=${HPCTOYS_ROOT}/opt/mc/lib
+  # optionally install libffi >= 3.0.0
+  CURRVER=$(pkg-config --modversion libffi 2>/dev/null)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
+    VER="3.4.2"
+    echoerr "\n * Installing 'libffi for mc' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL}
+    if [[ -f libffi-${VER}.tar.gz ]]; then
+      tar xf libffi-${VER}.tar.gz
+      cd libffi-${VER}.
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
+      #static & dynamic: make && make check && make install-all
+      #make static
+      #make install-static
+      make -j 4
+      make install
+    fi
+  fi
+
+  # optionally install glib-2 >= 2.30
+  CURRVER=$(pkg-config --modversion glib-2.0 2>/dev/null)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
     VER="2.72"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
     cd ${MYTMP}
@@ -204,11 +226,14 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       cd glib-${VER}.0
       ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
       #static & dynamic: make && make check && make install-all
-      make static
-      make install-static
+      #make static
+      #make install-static
+      make -j 4
+      make install
     fi
   fi
-  # first install s-lang dependency
+
+  # install s-lang dependency
   echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
   VER="2.3.2"
   cd ${MYTMP}
