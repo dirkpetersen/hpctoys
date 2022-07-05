@@ -3,6 +3,15 @@ opt/
 etc/hpctoys/
 tmp/
 custom.env
+bin/jq
+bin/yq
+bin/openssl
+bin/mc
+bin/rclone
+bin/dialog
+bin/aws
+bin/aws_completer
+
 
 
 # Byte-compiled / optimized / DLL files
