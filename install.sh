@@ -47,21 +47,22 @@ fi
 # installing dialog util for ncurses GUI
 idialog() {
 if ! inpath 'dialog'; then
-  if ! inpath 'ncurses5-config'; then
+  NCURSESOPT=''
+  if [[ -z $(pkg-config --modversion ncurses 2>/dev/null) ]]; then
     VER="6.3"
     echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
     cd ${MYTMP}
-
     DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
     curl -OkL ${DURL}
     if [[ -f ncurses-${VER}.tar.gz ]]; then
       tar xf ncurses-${VER}.tar.gz
       cd ncurses-${VER}
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
+      ./configure --prefix=${HPCTOYS_ROOT}/opt/dialog
       make -j 4
       make install
-      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses5-config \
-                  ${HPCTOYS_ROOT}/bin/ncurses5-config
+      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config \
+                  ${HPCTOYS_ROOT}/bin/ncurses6-config
+      NCURSESOPT='--with-curses-dir=${HPCTOYS_ROOT}/opt/dialog'
     else
       echo "unable to download ${DURL}, exiting !"
       ERRLIST+=" Ncurses"
@@ -74,7 +75,7 @@ if ! inpath 'dialog'; then
   if [[ -f dialog.tar.gz ]]; then
     tar xf dialog.tar.gz
     cd dialog-*
-    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog
+    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog ${NCURSESOPT}
     make -j 4
     make install
     ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
@@ -84,7 +85,6 @@ if ! inpath 'dialog'; then
   fi
   cd ${CURRDIR}
 fi
-}
 
 
 # installing jq, the json processor 
