@@ -85,7 +85,7 @@ if ! inpath 'dialog'; then
   fi
   cd ${CURRDIR}
 fi
-
+}
 
 # installing jq, the json processor 
 ijq() {
