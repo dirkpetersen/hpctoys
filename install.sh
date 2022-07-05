@@ -190,7 +190,7 @@ fi
 imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
-  export LD_LIBRARY_PATH+=${HPCTOYS_ROOT}/opt/mc/lib
+  export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
   # optionally install libffi >= 3.0.0
   CURRVER=$(pkg-config --modversion libffi 2>/dev/null)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
@@ -202,13 +202,14 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
     curl -OkL ${DURL}
     if [[ -f libffi-${VER}.tar.gz ]]; then
       tar xf libffi-${VER}.tar.gz
-      cd libffi-${VER}.
+      cd libffi-${VER}
       ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
       make -j 4
       make install
+      [[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
     fi
   fi
 
@@ -230,6 +231,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       #make install-static
       make -j 4
       make install
+      [[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
     fi
   fi
 
@@ -251,6 +253,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
     #static & dynamic: make && make check && make install-all
     make static  
     make install-static
+    [[ "$?" -ne 0 ]] && ERRLIST+=" s-lang"
   fi
   # then install MC
   VER="4.8.26" # .27 and .28 fail with s-lang compile errors
@@ -268,10 +271,11 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
                 --enable-charset
     make -j 4
     make install
-    if [[ "$?" -ne 0 ]]; then
+    if [[ "$?" -ne 0 ]]; then 
       ERRLIST+=" Midnight-Commander"
+    else
+      ln -sfr ${HPCTOYS_ROOT}/opt/mc/bin/mc ${HPCTOYS_ROOT}/bin/mc
     fi
-    ln -sfr ${HPCTOYS_ROOT}/opt/mc/bin/mc ${HPCTOYS_ROOT}/bin/mc
   else 
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" Midnight-Commander"
@@ -788,7 +792,11 @@ if [[ -z ${SUBCMD} ]]; then
   ilpython
   idefaults_group
   idefaults_user
-  iquestions_user
+  if [[ -z ${ERRLIST} ]]; then
+    iquestions_user
+  else
+    echoerr " Errors occured in these modules: \n ${ERRLIST}"
+  fi
 elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
