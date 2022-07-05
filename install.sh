@@ -190,6 +190,24 @@ fi
 imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
+  # optionally install glib-2 > 2.30
+  GLIB2VER=$(pkg-config --modversion glib-2.0 2>/dev/null)
+  if [[ $(intVersion ${GLIB2VER}) -lt $(intVersion "2.30") ]]; then
+    VER="2.72"
+    echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://download.gnome.org/sources/glib/${VER}/glib-${VER}.0.tar.xz"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL} 
+    if [[ -f glib-${VER}.0.tar.xz ]]; then
+      tar xf glib-${VER}.0.tar.xz
+      cd glib-${VER}.0
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
+      #static & dynamic: make && make check && make install-all
+      make static
+      make install-static
+    fi
+  fi
   # first install s-lang dependency
   echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
   VER="2.3.2"
