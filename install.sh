@@ -18,6 +18,8 @@ SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+RUNCPUS=4
+[[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=((${SLURM_CPUS_ON_NODE}*2))
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
@@ -482,7 +484,10 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     export LIBS="-lffi -lreadline -lncurses"
     export LDFLAGS="-L${HPCTOYS_ROOT}/opt/other/lib"
     export CPPFLAGS="-I${INC} -I${INC}/ncurses -I${INC}/readline"
-    ./configure --prefix="${TMPDIR}/hpctoys/lpython" \
+    #export CPPFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    echoerr "LIBS: ${LIBS}, LDFLAGS: ${LDFLAGS}, CPPFLAGS: ${CPPFLAGS}"
+    sleep 5
+    ./configure --prefix="/tmp/hpctoys/lpython" \
          ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
