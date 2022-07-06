@@ -845,6 +845,7 @@ read -n 1 -r -s -p $'\n Press enter to continue...\n'
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
+  iother
   ijq
   iyq
   ikeychain
@@ -861,7 +862,7 @@ if [[ -z ${SUBCMD} ]]; then
   if [[ -z ${ERRLIST} ]]; then
     iquestions_user
   fi
-elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|\
+elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
 else
