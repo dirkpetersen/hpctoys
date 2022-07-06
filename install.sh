@@ -190,9 +190,15 @@ fi
 imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
-  export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
+  #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
   export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lffi" 
-  export LIBFFI_CFLAGS=-IL${HPCTOYS_ROOT}/opt/mc/include
+  export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include"
+  export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0" 
+  export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
+         GLIB_CFLAGS+=" -I${HPCTOYS_ROOT}/opt/mc/lib/glib-2.0/include"
+  #export PCRE_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lpcre"
+  #export PCRE_CFLAGS="-IL${HPCTOYS_ROOT}/opt/mc/include"
+
   # optionally install libffi >= 3.0.0
   CURRVER=$(pkg-config --modversion libffi 2>/dev/null)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
@@ -215,6 +221,29 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
     fi
   fi
 
+  # currently disabled --- optionally install libpcre >= 8.13
+  CURRVER="8.45"  #$(pkg-config --modversion libpcre 2>/dev/null)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "8.13") ]]; then
+    VER="8.45"
+    echoerr "\n * Installing 'pcre for mc' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://sourceforge.net/projects/pcre/files/pcre/${VER}/pcre-${VER}.tar.bz2"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL}
+    if [[ -f pcre-${VER}.tar.bz2 ]]; then
+      tar xf pcre-${VER}.tar.bz2
+      cd pcre-${VER}
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
+                  --enable-unicode-properties
+      #static & dynamic: make && make check && make install-all
+      #make static
+      #make install-static
+      make -j 4
+      make install
+      [[ "$?" -ne 0 ]] && ERRLIST+=" pcre"
+    fi
+  fi
+
   # optionally install glib-2 >= 2.30
   CURRVER=$(pkg-config --modversion glib-2.0 2>/dev/null)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
@@ -227,7 +256,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
     if [[ -f glib-${VER}.0.tar.xz ]]; then
       tar xf glib-${VER}.0.tar.xz
       cd glib-${VER}.0
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
+             --disable-libmount --disable-selinux  --with-pcre=internal
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
@@ -238,8 +268,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   fi
 
   # install s-lang dependency
-  echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
   VER="2.3.2"
+  echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
   cd ${MYTMP}
   DURL=https://www.jedsoft.org/releases/slang/slang-${VER}.tar.bz2
   DURL2=https://www.jedsoft.org/releases/slang/old/slang-${VER}.tar.bz2
@@ -796,8 +826,6 @@ if [[ -z ${SUBCMD} ]]; then
   idefaults_user
   if [[ -z ${ERRLIST} ]]; then
     iquestions_user
-  else
-    echoerr " Errors occured in these modules: \n ${ERRLIST}"
   fi
 elif [[ ${SUBCMD} =~ ^(jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
