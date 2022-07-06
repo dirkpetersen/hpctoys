@@ -44,11 +44,12 @@ if [[ $? -eq 0 ]]; then
 fi
 
 
-# installing dialog util for ncurses GUI
-idialog() {
-if ! inpath 'dialog'; then
+# installing generic (other) dependencies 
+iother() {
+
+  # optionally install any version of ncurses
   NCURSESOPT=''
-  if [[ -z $(pkg-config --modversion ncurses 2>/dev/null) ]]; then
+  if [[ -z $(pkg-config --silence-errors --modversion ncurses) ]]; then
     VER="6.3"
     echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
     cd ${MYTMP}
@@ -57,13 +58,13 @@ if ! inpath 'dialog'; then
     if [[ -f ncurses-${VER}.tar.gz ]]; then
       tar xf ncurses-${VER}.tar.gz
       cd ncurses-${VER}
-      ./configure --prefix=${HPCTOYS_ROOT}/opt/dialog
+      ./configure --prefix=${HPCTOYS_ROOT}/opt/other
       make -j 4
       make install
-      if [[ -f ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config ]]; then
-        ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/ncurses6-config \
+      if [[ -f ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config ]]; then
+        ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config \
                     ${HPCTOYS_ROOT}/bin/ncurses6-config
-        NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/dialog"
+        NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/other"
       else
         ERRLIST+=" Ncurses"
       fi
@@ -72,6 +73,61 @@ if ! inpath 'dialog'; then
       ERRLIST+=" Ncurses"
     fi
   fi
+
+  # optionally install libffi >= 3.0.0
+  CURRVER=$(pkg-config --silence-errors --modversion libffi)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
+    VER="3.4.2"
+    echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL}
+    if [[ -f libffi-${VER}.tar.gz ]]; then
+      tar xf libffi-${VER}.tar.gz
+      cd libffi-${VER}
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/other
+      #static & dynamic: make && make check && make install-all
+      #make static
+      #make install-static
+      make -j 4
+      make install
+      [[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
+      export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
+      export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    fi
+  fi
+
+
+  # optionally install readline >= 3.0.0
+  CURRVER=$(pkg-config --silence-errors --modversion readline)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
+    VER="8.1"
+    echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL}
+    if [[ -f readline-${VER}.tar.gz ]]; then
+      tar xf readline-${VER}.tar.gz
+      cd readline-${VER}
+      ./configure --prefix ${HPCTOYS_ROOT}/opt/other
+      #static & dynamic: make && make check && make install-all
+      #make static
+      #make install-static
+      make -j 4
+      make install
+      [[ "$?" -ne 0 ]] && ERRLIST+=" readline"
+      export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
+      export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    fi
+  fi
+}
+
+
+# installing dialog util for ncurses GUI
+idialog() {
+if ! inpath 'dialog'; then
   echoerr "\n * Installing 'dialog' ... *\n"
   cd ${MYTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
@@ -199,30 +255,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   #export PCRE_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lpcre"
   #export PCRE_CFLAGS="-IL${HPCTOYS_ROOT}/opt/mc/include"
 
-  # optionally install libffi >= 3.0.0
-  CURRVER=$(pkg-config --modversion libffi 2>/dev/null)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
-    VER="3.4.2"
-    echoerr "\n * Installing 'libffi for mc' ${VER} ... *\n"
-    cd ${MYTMP}
-    DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
-    echo -e "\n *** Installing ${DURL} ...\n"
-    curl -OkL ${DURL}
-    if [[ -f libffi-${VER}.tar.gz ]]; then
-      tar xf libffi-${VER}.tar.gz
-      cd libffi-${VER}
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
-      #static & dynamic: make && make check && make install-all
-      #make static
-      #make install-static
-      make -j 4
-      make install
-      [[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
-    fi
-  fi
-
   # currently disabled --- optionally install libpcre >= 8.13
-  CURRVER="8.45"  #$(pkg-config --modversion libpcre 2>/dev/null)
+  CURRVER="8.45"  #$(pkg-config --silence-errors --modversion libpcre)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "8.13") ]]; then
     VER="8.45"
     echoerr "\n * Installing 'pcre for mc' ${VER} ... *\n"
@@ -245,7 +279,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   fi
 
   # optionally install glib-2 >= 2.30
-  CURRVER=$(pkg-config --modversion glib-2.0 2>/dev/null)
+  CURRVER=$(pkg-config --silence-errors --modversion glib-2.0)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
     VER="2.56"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
@@ -360,7 +394,7 @@ fi
 
 # OpenSSL needed for lpython
 iopenssl() {
-SSLVER=$(pkg-config --modversion openssl 2>/dev/null)
+SSLVER=$(pkg-config --silence-errors --modversion openssl)
 if [[ $(intVersion ${SSLVER}) -lt $(intVersion "1.1.1") ]]; then
 #if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
   VER="1_1_1p"
