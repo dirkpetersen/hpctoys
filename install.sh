@@ -247,8 +247,6 @@ imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
   #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
-  export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lffi" 
-  export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include"
   export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0" 
   export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
          GLIB_CFLAGS+=" -I${HPCTOYS_ROOT}/opt/mc/lib/glib-2.0/include"
@@ -297,7 +295,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       #make install-static
       make -j 4
       make install
-      [[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
+      # shown an error even though it installs correctly 
+      #[[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
     fi
   fi
 
@@ -470,6 +469,13 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
         #addLineToFile '_hashlib _hashopenssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) -lcrypto' Modules/Setup
       #fi
     fi
+    #LDFLAGS     linker flags, e.g. -L<lib dir>
+    #LIBS        libraries to pass to the linker, e.g. -l<library>
+    #CPPFLAGS     -I<include dir>
+    INC="${HPCTOYS_ROOT}/opt/other/include"
+    export LIBS="-lffi -lreadline -lncurses"
+    export LDFLAGS="-L${HPCTOYS_ROOT}/opt/other/lib"
+    export CPPFLAGS="-I${INC} -I${INC}/ncurses -I${INC}/readline"
     ./configure --prefix="${TMPDIR}/hpctoys/lpython" \
          ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
@@ -850,6 +856,11 @@ if [[ -z ${SUBCMD} ]]; then
   iyq
   ikeychain
   idialog
+  idefaults_group
+  idefaults_user
+  if [[ -z ${ERRLIST} ]]; then
+    iquestions_user
+  fi
   igithub
   iawscli2
   iopenssl
@@ -857,11 +868,6 @@ if [[ -z ${SUBCMD} ]]; then
   irclone
   iminiconda
   ilpython
-  idefaults_group
-  idefaults_user
-  if [[ -z ${ERRLIST} ]]; then
-    iquestions_user
-  fi
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
@@ -874,9 +880,12 @@ fi
 # cleanup
 if [[ -z ${ERRLIST} ]]; then
   rm -rf ${MYTMP}
+  echoerr " HPC Toys installed ! "
+  echoerr " Please logout/login or run this command:"
+  echoerr " source ${PROF}"
 else
-  echo "Errors in these installations: ${ERRLIST}"
-  echo "Check ${MYTMP} for troubleshooting"
+  echoerr "Errors in these installations: ${ERRLIST}"
+  echoerr "Check ${MYTMP} for troubleshooting"
 fi
 cd ${CURRDIR}
 
