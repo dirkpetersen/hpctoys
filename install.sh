@@ -191,6 +191,8 @@ imc() {
 if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 #if ! inpath 'mc'; then
   export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
+  export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lffi" 
+  export LIBFFI_CFLAGS=-IL${HPCTOYS_ROOT}/opt/mc/include
   # optionally install libffi >= 3.0.0
   CURRVER=$(pkg-config --modversion libffi 2>/dev/null)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
@@ -216,7 +218,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   # optionally install glib-2 >= 2.30
   CURRVER=$(pkg-config --modversion glib-2.0 2>/dev/null)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
-    VER="2.72"
+    VER="2.56"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
     cd ${MYTMP}
     DURL="https://download.gnome.org/sources/glib/${VER}/glib-${VER}.0.tar.xz"
