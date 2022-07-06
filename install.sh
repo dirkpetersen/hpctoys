@@ -51,26 +51,28 @@ iother() {
   NCURSESOPT=''
   if [[ -z $(pkg-config --silence-errors --modversion ncurses) ]]; then
     VER="6.3"
-    echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
-    cd ${MYTMP}
-    DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
-    curl -OkL ${DURL}
-    if [[ -f ncurses-${VER}.tar.gz ]]; then
-      tar xf ncurses-${VER}.tar.gz
-      cd ncurses-${VER}
-      ./configure --prefix=${HPCTOYS_ROOT}/opt/other
-      make -j 4
-      make install
-      if [[ -f ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config ]]; then
-        ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config \
-                    ${HPCTOYS_ROOT}/bin/ncurses6-config
-        NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/other"
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libncurses.a ]]; then
+      echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
+      cd ${MYTMP}
+      DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
+      curl -OkL ${DURL}
+      if [[ -f ncurses-${VER}.tar.gz ]]; then
+	tar xf ncurses-${VER}.tar.gz
+	cd ncurses-${VER}
+	./configure --prefix=${HPCTOYS_ROOT}/opt/other
+	make -j 4
+	make install
+	if [[ -f ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config ]]; then
+	  ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config \
+		      ${HPCTOYS_ROOT}/bin/ncurses6-config
+	  NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/other"
+	else
+	  ERRLIST+=" Ncurses"
+	fi
       else
-        ERRLIST+=" Ncurses"
+	echo "unable to download ${DURL}, exiting !"
+	ERRLIST+=" Ncurses"
       fi
-    else
-      echo "unable to download ${DURL}, exiting !"
-      ERRLIST+=" Ncurses"
     fi
   fi
 
@@ -78,23 +80,25 @@ iother() {
   CURRVER=$(pkg-config --silence-errors --modversion libffi)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
     VER="3.4.2"
-    echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
-    cd ${MYTMP}
-    DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
-    echo -e "\n *** Installing ${DURL} ...\n"
-    curl -OkL ${DURL}
-    if [[ -f libffi-${VER}.tar.gz ]]; then
-      tar xf libffi-${VER}.tar.gz
-      cd libffi-${VER}
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/other
-      #static & dynamic: make && make check && make install-all
-      #make static
-      #make install-static
-      make -j 4
-      make install
-      [[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
-      export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
-      export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a ]]; then
+      echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
+      cd ${MYTMP}
+      DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
+      echo -e "\n *** Installing ${DURL} ...\n"
+      curl -OkL ${DURL}
+      if [[ -f libffi-${VER}.tar.gz ]]; then
+	tar xf libffi-${VER}.tar.gz
+	cd libffi-${VER}
+	./configure --prefix ${HPCTOYS_ROOT}/opt/other
+	#static & dynamic: make && make check && make install-all
+	#make static
+	#make install-static
+	make -j 4
+	make install
+	[[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
+	export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
+	export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+      fi
     fi
   fi
 
@@ -103,23 +107,25 @@ iother() {
   CURRVER=$(pkg-config --silence-errors --modversion readline)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
     VER="8.1"
-    echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
-    cd ${MYTMP}
-    DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
-    echo -e "\n *** Installing ${DURL} ...\n"
-    curl -OkL ${DURL}
-    if [[ -f readline-${VER}.tar.gz ]]; then
-      tar xf readline-${VER}.tar.gz
-      cd readline-${VER}
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/other
-      #static & dynamic: make && make check && make install-all
-      #make static
-      #make install-static
-      make -j 4
-      make install
-      [[ "$?" -ne 0 ]] && ERRLIST+=" readline"
-      export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
-      export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
+      echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
+      cd ${MYTMP}
+      DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
+      echo -e "\n *** Installing ${DURL} ...\n"
+      curl -OkL ${DURL}
+      if [[ -f readline-${VER}.tar.gz ]]; then
+	tar xf readline-${VER}.tar.gz
+	cd readline-${VER}
+	./configure --prefix ${HPCTOYS_ROOT}/opt/other
+	#static & dynamic: make && make check && make install-all
+	#make static
+	#make install-static
+	make -j 4
+	make install
+	[[ "$?" -ne 0 ]] && ERRLIST+=" readline"
+	export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
+	export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+      fi
     fi
   fi
 }
@@ -866,8 +872,8 @@ if [[ -z ${SUBCMD} ]]; then
   iopenssl
   imc
   irclone
-  iminiconda
   ilpython
+  iminiconda
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
