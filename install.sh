@@ -439,12 +439,12 @@ fi
 
 # a special Python for a user group that is optimzed and locally cached. 
 ilpython() {
-VER="3.11.0"
-VER_B="b3" # beta ver such as b1, b2 or b3
+VER="3.10.5"
+VER_B="" # beta ver such as b1, b2 or b3
 cd ${MYTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   echoerr "\n * Installing 'lpython' ${VER}${VER_B} ... *\n"
-  loadLmod gcc
+  #loadLmod gcc
   #libffi sqlite ncurses readline libreadline
   GCCVER=$(gcc -dumpfullversion)
   #echo -e "\n Using GCC ${GCCVER} ...\n"
@@ -480,14 +480,17 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     #LDFLAGS     linker flags, e.g. -L<lib dir>
     #LIBS        libraries to pass to the linker, e.g. -l<library>
     #CPPFLAGS     -I<include dir>
-    INC="${HPCTOYS_ROOT}/opt/other/include"
-    export LIBS="-lffi -lreadline -lncurses"
-    export LDFLAGS="-L${HPCTOYS_ROOT}/opt/other/lib"
-    export CPPFLAGS="-I${INC} -I${INC}/ncurses -I${INC}/readline"
-    #export CPPFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
-    echoerr "LIBS: ${LIBS}, LDFLAGS: ${LDFLAGS}, CPPFLAGS: ${CPPFLAGS}"
+
+    #INC="${HPCTOYS_ROOT}/opt/other/include"
+    #export LIBS="-lffi -lreadline -lncurses"
+    #export LDFLAGS="-L${HPCTOYS_ROOT}/opt/other/lib"
+    #export CPPFLAGS="-I${INC} -I${INC}/ncurses -I${INC}/readline"
+    ##export CPPFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+    #echoerr "LIBS: ${LIBS}, LDFLAGS: ${LDFLAGS}, CPPFLAGS: ${CPPFLAGS}"
     sleep 5
     ./configure --prefix="/tmp/hpctoys/lpython" \
+         --libdir="${HPCTOYS_ROOT}/opt/other/lib" \
+	 --includedir="${HPCTOYS_ROOT}/opt/other/include" \
          ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
