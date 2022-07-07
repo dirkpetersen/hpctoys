@@ -19,7 +19,7 @@ SUBCMD=$1
 ERRLIST=""
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 RUNCPUS=4
-[[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=((${SLURM_CPUS_ON_NODE}*2))
+[[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=$((${SLURM_CPUS_ON_NODE}*2))
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
@@ -62,7 +62,7 @@ iother() {
 	tar xf ncurses-${VER}.tar.gz
 	cd ncurses-${VER}
 	./configure --prefix=${HPCTOYS_ROOT}/opt/other
-	make -j 4
+	make -j ${RUNCPUS}
 	make install
 	if [[ -f ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config ]]; then
 	  ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config \
@@ -95,7 +95,7 @@ iother() {
 	#static & dynamic: make && make check && make install-all
 	#make static
 	#make install-static
-	make -j 4
+	make -j ${RUNCPUS}
 	make install
 	[[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
 	export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
@@ -122,7 +122,7 @@ iother() {
 	#static & dynamic: make && make check && make install-all
 	#make static
 	#make install-static
-	make -j 4
+	make -j ${RUNCPUS}
 	make install
 	[[ "$?" -ne 0 ]] && ERRLIST+=" readline"
 	export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
@@ -144,7 +144,7 @@ if ! inpath 'dialog'; then
     tar xf dialog.tar.gz
     cd dialog-*
     ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog ${NCURSESOPT}
-    make -j 4
+    make -j ${RUNCPUS}
     make install
     if [[ -f ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ]]; then
       ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
@@ -278,7 +278,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
-      make -j 4
+      make -j ${RUNCPUS}
       make install
       [[ "$?" -ne 0 ]] && ERRLIST+=" pcre"
     fi
@@ -301,7 +301,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
-      make -j 4
+      make -j ${RUNCPUS}
       make install
       # shown an error even though it installs correctly 
       #[[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
@@ -342,7 +342,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
                 --with-slang-includes=${HPCTOYS_ROOT}/opt/mc/include \
                 --with-slang-libs=${HPCTOYS_ROOT}/opt/mc/lib \
                 --enable-charset
-    make -j 4
+    make -j ${RUNCPUS}
     make install
     if [[ "$?" -ne 0 ]]; then 
       ERRLIST+=" Midnight-Commander"
@@ -416,7 +416,7 @@ if [[ $(intVersion ${SSLVER}) -lt $(intVersion "1.1.1") ]]; then
     ./Configure --prefix=${HPCTOYS_ROOT}/opt/openssl \
              --openssldir=${HPCTOYS_ROOT}/opt/openssl/ssl \
              linux-x86_64
-    make -j 4
+    make -j ${RUNCPUS}
     make install
     ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
     rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
@@ -494,7 +494,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
-    make -j 4 2>&1 | tee make.output
+    make -j ${RUNCPUS} 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install 2>&1 | tee make.install.output
     if [[ -f ${TMPDIR}/hpctoys/lpython/bin/python${VER::-2} ]]; then
