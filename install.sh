@@ -289,6 +289,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
     VER="2.56"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
+    sleep 1
     cd ${MYTMP}
     DURL="https://download.gnome.org/sources/glib/${VER}/glib-${VER}.0.tar.xz"
     echo -e "\n *** Installing ${DURL} ...\n"
