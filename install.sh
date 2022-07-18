@@ -13,7 +13,7 @@ if ! [[ -f etc/profile.d/zzz-users.sh ]]; then
   exit
 fi
 . etc/profile.d/zzz-users.sh
-MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXXXX")
+MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXX")
 SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
@@ -28,33 +28,60 @@ while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
 done
 shift $((OPTIND - 1))
 
-if ! inpath 'curl'; then
-  echo "This script requires 'curl'. Please ask your system administrator to install curl and add it to your PATH."
-  exit 1
-fi
-
 umask 0000
 # bin folder for other single binaries
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
 
 echoerr "\n *** Preparing Installation of HPC Toys ***"
-echoerr " *** Waiting for 3 sec *** ..."
+echoerr " \n If you have sudo rights, cancel this installer,"  
+echoerr " run 'sudo test' and restart the install"
+echoerr " \n *** Waiting for 3 sec *** ..."
+echoerr " "
 read -t 3 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
 if [[ $? -eq 0 ]]; then
   echoerr " Setup interrupted, exiting ...\n"
   exit
 fi
 
-
 # installing generic (other) dependencies 
 iother() {
-
-  # optionally install any version of ncurses
+  
+  # install OS PKG if we have sudo access now 
+  if sudo -n true 2>/dev/null; then 
+    echoerr "\n Installing packages with Sudo access"
+    PKG="vim jq mc dialog pkgconf gettext curl "
+    PKGDNF="gcc openssl-devel bzip2-devel libffi-devel "
+    PKGAPT="build-essential uuid-dev zlib1g-dev liblzma-dev libbz2-dev libgdbm-dev "
+    PKGAPT+="libssl-dev  libreadline-dev libsqlite3-dev libncurses5-dev libffi-dev "
+    if inpath 'dnf'; then
+      echoerr "\n *** Installing packages :${PKG}${PKGDNF}"
+      sudo dnf -y groupinstall "Development Tools" #--with-optional
+      sudo dnf install -y ${PKG}${PKGDNF}
+    elif inpath 'yum'; then
+      echoerr "\n *** Installing packages :${PKG}${PKGDNF}"
+      sudo yum -y groupinstall "Development Tools" #--with-optional
+      sudo yum install -y ${PKG}${PKGDNF}
+    elif inpath 'apt'; then
+      echoerr "\n *** Installing packages :${PKG}${PKGAPT}"
+      sudo apt install -y ${PKG}${PKGAPT}
+    fi   
+  else
+    MISS=""
+    ! inpath 'curl'  && MISS+="curl "
+    ! inpath 'pkg-config'  && MISS+="pkgconf "
+    if [[ -n ${MISS} ]]; then
+      echoerr "\n Missing packages! Please have these packages installed:\n ${MISS}"
+      exit 1      
+    fi
+  fi  
+ 
+  # optionally install any version of ncurses 
   NCURSESOPT=''
   if [[ -z $(pkg-config --silence-errors --modversion ncurses) ]]; then
     VER="6.3"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libncurses.a ]]; then
       echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
+      sleep 1
       cd ${MYTMP}
       DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
       curl -OkL ${DURL}
@@ -84,6 +111,7 @@ iother() {
     VER="3.4.2"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a ]]; then
       echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
+      sleep 1
       cd ${MYTMP}
       DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
       echo -e "\n *** Installing ${DURL} ...\n"
@@ -98,12 +126,35 @@ iother() {
 	make -j ${RUNCPUS}
 	make install
 	[[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
-	export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
-	export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
       fi
     fi
+    export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
+    export LIBFFI_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
   fi
 
+  # optionally install zlib >=1
+  CURRVER=$(pkg-config --silence-errors --modversion zlib)
+  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "1.0") ]]; then
+    VER="1.2.12"
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libz.a ]]; then
+      echoerr "\n * Installing 'zlib for glib-2.0' ${VER} ... *\n"
+      sleep 1
+      cd ${MYTMP}
+      DURL="https://zlib.net/zlib-${VER}.tar.gz"
+      echo -e "\n *** Installing ${DURL} ...\n"
+      curl -OkL ${DURL}
+      if [[ -f zlib-${VER}.tar.gz ]]; then
+        tar xf zlib-${VER}.tar.gz
+        cd zlib-${VER}
+        ./configure --prefix ${HPCTOYS_ROOT}/opt/other
+        make -j ${RUNCPUS}
+        make install
+        [[ "$?" -ne 0 ]] && ERRLIST+=" zlib"
+      fi      
+    fi
+    export ZLIB_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lz"
+    export ZLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+  fi
 
   # optionally install readline >= 3.0.0
   CURRVER=$(pkg-config --silence-errors --modversion readline)
@@ -111,6 +162,7 @@ iother() {
     VER="8.1"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
       echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
+      sleep 1
       cd ${MYTMP}
       DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
       echo -e "\n *** Installing ${DURL} ...\n"
@@ -125,10 +177,10 @@ iother() {
 	make -j ${RUNCPUS}
 	make install
 	[[ "$?" -ne 0 ]] && ERRLIST+=" readline"
-	export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
-	export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
       fi
     fi
+    export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
+    export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
   fi
 }
 
@@ -136,7 +188,10 @@ iother() {
 # installing dialog util for ncurses GUI
 idialog() {
 if ! inpath 'dialog'; then
+  # if ncurses is garbled run 'sudo update-locale' 
+  # or 'sudo update-locale LANG=en_US.UTF-8'
   echoerr "\n * Installing 'dialog' ... *\n"
+  sleep 1
   cd ${MYTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
   curl -OkL ${DURL}
@@ -164,6 +219,7 @@ ijq() {
 if ! inpath 'jq'; then
   VER="1.6"
   echoerr "\n * Installing 'jq' ${VER} ... *\n"
+  sleep 1
   DURL="https://github.com/stedolan/jq/releases/download/jq-${VER}/jq-linux64"
   curl -kL ${DURL} -o ${HPCTOYS_ROOT}/opt/other/bin/jq
   chmod +x ${HPCTOYS_ROOT}/opt/other/bin/jq
@@ -176,6 +232,7 @@ iyq() {
 if ! inpath 'yq'; then
   VER=4.25.3
   echoerr "\n * Installing 'yq' ${VER} ... *\n"
+  sleep 1
   DURL="https://github.com/mikefarah/yq/releases/download/v${VER}/yq_linux_amd64"
   curl -kL ${DURL} -o ${HPCTOYS_ROOT}/opt/other/bin/yq
   chmod +x ${HPCTOYS_ROOT}/opt/other/bin/yq
@@ -188,6 +245,7 @@ ikeychain() {
 if ! inpath 'keychain'; then
   VER="2.8.5"
   echoerr "\n * Installing 'keychain' ${VER} ... *\n"
+  sleep 1
   cd ${MYTMP}
   DURL="https://github.com/funtoo/keychain/archive/refs/tags/${VER}.tar.gz"
   curl -OkL ${DURL}
@@ -210,6 +268,7 @@ igithub() {
 if ! inpath 'gh'; then
   VER="2.13.0"
   echoerr "\n * Installing 'github cli' ${VER} ... *\n"
+  sleep 1
   cd ${MYTMP}
   DURL="https://github.com/cli/cli/releases/download/v${VER}/gh_${VER}_linux_amd64.tar.gz"
   curl -OkL ${DURL}
@@ -235,6 +294,7 @@ fi
 iawscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
   echoerr "\n * Installing 'awscli2' ${VER} ... *\n"
+  sleep 1
   cd ${MYTMP}
   DURL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
   curl -OkL ${DURL}
@@ -252,8 +312,8 @@ fi
 
 # Midnight Commander 
 imc() {
-if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
-#if ! inpath 'mc'; then
+#if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
+if ! inpath 'mc'; then
   #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
   export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0" 
   export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
@@ -284,6 +344,20 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
     fi
   fi
 
+  # compiling gettext from source is not detected by glib-2
+  #https://ftp.gnu.org/gnu/gettext/gettext-0.21.tar.xz
+  #disabled
+  if ! inpath 'msgfmt'; then
+    echo '#! /bin/bash' > ${HPCTOYS_ROOT}/bin/msgfmt
+    echo 'echo "This is a dummy wrapper for msgfmt"' \
+                      >> ${HPCTOYS_ROOT}/bin/msgfmt
+    echo 'echo "install the gettext package and delete msgfmt"' \
+                      >> ${HPCTOYS_ROOT}/bin/msgfmt
+    chmod +x ${HPCTOYS_ROOT}/bin/msgfmt
+    ${HPCTOYS_ROOT}/bin/msgfmt
+    sleep 1
+  fi
+
   # optionally install glib-2 >= 2.30
   CURRVER=$(pkg-config --silence-errors --modversion glib-2.0)
   if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
@@ -298,7 +372,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
       tar xf glib-${VER}.0.tar.xz
       cd glib-${VER}.0
       ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
-             --disable-libmount --disable-selinux  --with-pcre=internal
+             --disable-libmount --disable-selinux  --with-pcre=internal --without-gettext
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
@@ -404,34 +478,35 @@ fi
 iopenssl() {
 SSLVER=$(pkg-config --silence-errors --modversion openssl)
 if [[ $(intVersion ${SSLVER}) -lt $(intVersion "1.1.1") ]]; then
-#if ! [[ -d "${HPCTOYS_ROOT}/opt/openssl" ]]; then
-  VER="1_1_1p"
-  echoerr "\n * Installing 'openssl' ${VER} ... *\n"
-  cd ${MYTMP}
-  DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
-  echo -e "\n *** Installing ${DURL} ...\n"
-  curl -OkL ${DURL}
-  if [[ -f OpenSSL_${VER}.tar.gz ]]; then
-    tar xf OpenSSL_${VER}.tar.gz
-    cd openssl-OpenSSL_${VER}
-    ./Configure --prefix=${HPCTOYS_ROOT}/opt/openssl \
-             --openssldir=${HPCTOYS_ROOT}/opt/openssl/ssl \
-             linux-x86_64
-    make -j ${RUNCPUS}
-    make install
-    ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
-    rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
-    if [[ -d /etc/pki/tls/certs ]]; then
-      # RHEL systems
-      ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+  if ! [[ -f "${HPCTOYS_ROOT}/opt/openssl/bin/openssl" ]]; then
+    VER="1_1_1p"
+    echoerr "\n * Installing 'openssl' ${VER} ... *\n"
+    cd ${MYTMP}
+    DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
+    echo -e "\n *** Installing ${DURL} ...\n"
+    curl -OkL ${DURL}
+    if [[ -f OpenSSL_${VER}.tar.gz ]]; then
+      tar xf OpenSSL_${VER}.tar.gz
+      cd openssl-OpenSSL_${VER}
+      ./Configure --prefix=${HPCTOYS_ROOT}/opt/openssl \
+               --openssldir=${HPCTOYS_ROOT}/opt/openssl/ssl \
+               linux-x86_64
+      make -j ${RUNCPUS}
+      make install
+      ln -sfr ${HPCTOYS_ROOT}/opt/openssl/bin/openssl ${HPCTOYS_ROOT}/bin/openssl
+      rmdir ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+      if [[ -d /etc/pki/tls/certs ]]; then
+        # RHEL systems
+        ln -sf /etc/pki/tls/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+      else
+        # Xbuntu systems
+        ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+      fi
     else
-      # Xbuntu systems
-      ln -sf /etc/ssl/certs ${HPCTOYS_ROOT}/opt/openssl/ssl/certs
+      echo "unable to download ${DURL}, exiting !"
+      ERRLIST+=" OpenSSL"
     fi
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" OpenSSL"
-  fi
+  fi 
   export OPENSSL_ROOT=${HPCTOYS_ROOT}/opt/openssl
   cd ${CURRDIR}
 fi
@@ -487,17 +562,21 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     #export LDFLAGS="-L${HPCTOYS_ROOT}/opt/other/lib"
     #export CPPFLAGS="-I${INC} -I${INC}/ncurses -I${INC}/readline"
     ##export CPPFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
-    #echoerr "LIBS: ${LIBS}, LDFLAGS: ${LDFLAGS}, CPPFLAGS: ${CPPFLAGS}"
-    sleep 5
+    echoerr "LIBS: ${LIBS}, LDFLAGS: ${LDFLAGS}, CPPFLAGS: ${CPPFLAGS}"
+    echoerr "READLINE_LIBS: ${READLINE_LIBS}, READLINE_CFLAGS: ${READLINE_CFLAGS}"
+    echoerr "LIBFFI_LIBS: ${LIBFFI_LIBS}, LIBFFI_CFLAGS: ${LIBFFI_CFLAGS}"
+    sleep 1
     ./configure --prefix="/tmp/hpctoys/lpython" \
          --libdir="${HPCTOYS_ROOT}/opt/other/lib" \
 	 --includedir="${HPCTOYS_ROOT}/opt/other/include" \
          ${OPENSSL_OPTIONS} ${EXTRA_TUNING_OPTIONS} 2>&1 | tee configure.output
+    sleep 3
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
     replaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
+    #exit 1
     make -j ${RUNCPUS} 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
     make install 2>&1 | tee make.install.output
@@ -876,11 +955,11 @@ if [[ -z ${SUBCMD} ]]; then
   if [[ -z ${ERRLIST} ]]; then
     iquestions_user
   fi
+  imc
+  irclone
   igithub
   iawscli2
   iopenssl
-  imc
-  irclone
   ilpython
   iminiconda
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
