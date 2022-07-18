@@ -1,0 +1,55 @@
+#! /bin/bash
+
+# hty - HPCToys commands 
+#
+SCR=${0##*/}
+SUBCMD=$1
+
+#initLpython
+
+shift
+while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
+  #echo "OPTION: -${OPTION} ARG: ${OPTARG}"
+  eval OPT_${OPTION}=\$OPTARG
+done
+shift $((OPTIND - 1))
+
+if [[ -z ${HPCTOYS_ROOT} ]]; then
+  echo "HPCTOYS_ROOT envionment variable not set, exiting..."
+  exit
+fi
+
+tmux(){
+  
+  echo " ${SCR} create <server-name>"
+  echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
+  echo -e "\nfor example:"
+  echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
+}
+
+
+help(){
+  echo " ${SCR} create <server-name>"
+  echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
+  echo -e "\nfor example:"
+  echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
+}
+
+args() {
+  while getopts a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z: OPTION "$@"; do
+    echo "OPTION: -${OPTION} ARG: ${OPTARG}"
+    eval OPT_${OPTION}=\$OPTARG
+  done
+  shift $((OPTIND - 1))
+  printf " arg: '%s'" "$@"
+  echo ""
+}
+
+if [[ ${SUBCMD} =~ ^(tmux|help|args)$ ]]; then
+  ${SUBCMD} "$@"
+else
+  echo "Invalid subcommand: ${SUBCMD}" >&2
+  help
+  exit 1
+fi
+
