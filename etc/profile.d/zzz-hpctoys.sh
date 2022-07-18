@@ -122,6 +122,37 @@ htyDialogChecklist() {
   clear
 }
 
+htyDialogMenu() {
+  # wrapper for unix dialog --menu
+  #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
+  MSG="${FUNCNAME[0]} <message> <list-of-options>"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  OPT=""
+  RES=""
+  i=0
+  for E in $2; do
+    let i++
+    OPT+="$i $E "
+  done
+  while [[ "$RES" == "" ]]; do
+    RES=$(dialog --menu "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty)
+    RET=$?
+    #echo $RET:$RES && sleep 3
+    if [[ $RET -ne 0 ]]; then
+      clear
+      echoerr "\n Setup canceled, exiting ...\n"
+      exit
+    fi
+  done
+  clear
+}
+
+### More dialogs 
+#dialog --pause "This is a 30 second pause" 0 0 30
+#dialog --menu "Choose the option" 12 45 25 1 "apple" 2 "banana" 3 "mango"
+#dialog --radiolist "radiolist" 15 10 10 "apple" 5 'off' 'banana' 2 'off' 'coffee' 3 'off'
+
+
 htyReadConfigOrDefault() {
   # htyReadConfigOrDefault <setting> <default>
   if [[ -f ~/.config/hpctoys/$1 ]]; then 
@@ -239,6 +270,7 @@ export -f htyFilesPlain
 export -f htyIsItemInList
 export -f htyDialogInputbox
 export -f htyDialogChecklist
+export -f htyDialogMenu
 export -f htyReadConfigOrDefault
 export -f htyAppendPath
 export -f htyPrependPath
