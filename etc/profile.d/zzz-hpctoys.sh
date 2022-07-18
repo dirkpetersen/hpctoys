@@ -9,39 +9,110 @@ UID_APPMGR=222222
 export LPYTHONVER="3.11.0"
 
 # helper functions 
-ingroup() { [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
-inpath() { builtin type -P "$1" &> /dev/null ; }   #is executable in path
 echoerr() {
   # echo to stderr instead of stdout
   echo -e "$@" 1>&2
 }
-mkdirIf(){
-  # mkdirIf "<dir-name>"
+htyInGroup() { [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
+htyInPath() { builtin type -P "$1" &> /dev/null ; }   #is executable in path
+htyMkdir(){
+  # htyMkdir "<dir-name>"
   if ! [[ -d "$1" ]]; then
     mkdir -p  "$1"
   fi
 }
-addLineToFile() {  
-  # addLineToFile <line> <filename>
+htyAddLineToFile() {  
+  # htyAddLineToFile <line> <filename>
   if ! grep -q "^$1" "$2"; then
     echo "$1" >> "$2"
   fi
 }
-addLineBelowLineToFile() {
-  # addLineBelowLineToFile <add-this> <below-this> <filename>
+htyAddLineBelowLineToFile() {
+  # htyAddLineBelowLineToFile <add-this> <below-this> <filename>
   if ! grep -q "^$1" "$3"; then
     sed -i "|^$2*|a $1" "$3"
   fi
 }
-replaceCommentLineInFile() {
+htyReplaceCommentLineInFile() {
   MSG="${FUNCNAME[0]} <line-to-be-commented> <replacement-line> <file-that-exists>"
   [[ ! -f $3 ]] && echo ${MSG} && return 1
   if ! grep -q "^$2" "$3"; then
     sed -i "s|^$1|#$1\n$2|g" "$3"
   fi
 }
-readConfigOrDefault() {
-  # readConfigOrDefault <setting> <default>
+
+htyFilesPlain() {
+MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
+[[ -z $1 ]] && echo ${MSG} && return 1
+if [[ -z $2 ]]; then
+  ls -1 $1
+else
+  CD=$(pwd)
+  cd $1
+  ls -1 $2
+  cd ${CD}
+fi
+}
+
+htyIsItemInList() {
+MSG="${FUNCNAME[0]} <item> <list of items>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+for X in $2; do
+  [[ "$1" == "$X" ]] && return 0
+done
+return 1
+}
+
+htyDialogInputbox() {
+#read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
+MSG="${FUNCNAME[0]} <message> <default-value>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+RES="" 
+while [[ "$RES" == "" ]]; do 
+  RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
+  RET=$?
+  #echo $RET:$RES && sleep 3
+  if [[ $RET -ne 0 ]]; then
+    clear
+    echoerr "\n Setup canceled, exiting ...\n"
+    exit
+  fi
+done
+clear
+
+}
+
+htyDialogChecklist() {
+# read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
+MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
+[[ -z $2 ]] && echo ${MSG} && return 1
+OPT=""
+RES=""
+i=0
+for E in $2; do 
+  let i++
+  if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
+    OPT+="$E $i on "
+  else 
+    OPT+="$E $i off "
+  fi  
+done
+while [[ "$RES" == "" ]]; do
+  RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
+  RET=$?
+  #echo $RET:$RES && sleep 3
+  if [[ $RET -ne 0 ]]; then
+    clear
+    echoerr "\n Setup canceled, exiting ...\n"
+    exit
+  fi
+done
+clear
+}
+
+
+htyReadConfigOrDefault() {
+  # htyReadConfigOrDefault <setting> <default>
   if [[ -f ~/.config/hpctoys/$1 ]]; then 
     echo "$(cat ~/.config/hpctoys/$1)"
   elif [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/$1 ]]; then
@@ -50,7 +121,7 @@ readConfigOrDefault() {
     echo "$2"
   fi
 }
-appendPath() {
+htyAppendPath() {
   # remove from PATH and add to end of PATH 
   for ARG in "$@"; do
     PATH=${PATH//":${ARG}"/} #delete any instances in the middle or at the end
@@ -60,7 +131,7 @@ appendPath() {
     fi
   done
 }
-prependPath() {
+htyPrependPath() {
   # remove from PATH and add to beginning of PATH
   for ((i=$#; i>0; i--)); do
     ARG=${!i}
@@ -71,11 +142,11 @@ prependPath() {
     fi
   done
 }
-intVersion() { 
+htyIntVersion() { 
   # convert version to integer to allow comparison of versions 
   echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; 
 }
-loadLmod() {
+htyLoadLmod() {
   # load last found module that starts with $1 
   # (capture both STDOUT and STDERR from 'ml avail') 
   if [[ -z $1 ]]; then
@@ -91,6 +162,10 @@ loadLmod() {
     ml $(grep -i "^${M}" <<< "${AVAIL}" | tail -1)
   done
 }
+
+
+
+
 initSpack(){
   # initSpack 
   if [[ -d "${SPACK_ROOT}" ]]; then
@@ -143,12 +218,21 @@ initLpython() {
 # needed if used inside functions
 # list all functions with "declare -F"
 export -f echoerr
-export -f initLpython
-export -f addLineToFile
-export -f loadLmod
-export -f prependPath
-export -f appendPath
-export -f readConfigOrDefault
+export -f htyInGroup
+export -f htyInPath
+export -f htyMkdir  
+export -f htyAddLineToFile
+export -f htyAddLineBelowLineToFile
+export -f htyReplaceCommentLineInFile
+export -f htyFilesPlain
+export -f htyIsItemInList
+export -f htyDialogInputbox
+export -f htyDialogChecklist
+export -f htyReadConfigOrDefault
+export -f htyAppendPath
+export -f htyPrependPath
+export -f htyIntVersion
+export -f htyLoadLmod
 
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)
@@ -162,8 +246,8 @@ if [[ -z ${TMPDIR} ]]; then
   export TMPDIR="/tmp"
 fi
 export HPCTOYS_ROOT="${GR}"
-mkdirIf ~/.config/hpctoys
-mkdirIf "${HPCTOYS_ROOT}/etc/hpctoys"
+htyMkdir ~/.config/hpctoys
+htyMkdir "${HPCTOYS_ROOT}/etc/hpctoys"
 WHOAMI=$(whoami)
 
 if [[ "$EUID" -ne 0 ]]; then
@@ -172,17 +256,17 @@ if [[ "$EUID" -ne 0 ]]; then
     umask 0007
   fi
   # Generic Environment variables and PATHs
-  if ingroup "${GID_SUPERUSERS}"; then 
-    appendPath "${GR}/sbin"
+  if  "${GID_SUPERUSERS}"; then 
+    htyAppendPath "${GR}/sbin"
   fi
-  prependPath "${GR}/bin" "${GR}/opt/python/bin"
-  appendPath "~/.local/bin"
+  htyPrependPath "${GR}/bin" "${GR}/opt/python/bin"
+  htyAppendPath "~/.local/bin"
   if [[ -d ${GR}/opt/miniconda ]]; then
-    appendPath ${GR}/opt/miniconda/bin
+    htyAppendPath ${GR}/opt/miniconda/bin
   fi
   
   # replace dark blue color in terminal and VI
-  COL=$(readConfigOrDefault "dircolors")
+  COL=$(htyReadConfigOrDefault "dircolors")
   if [[ -z ${COL} ]]; then
     COL=$(dircolors)
     eval ${COL/di=01;34/di=01;36}
@@ -192,7 +276,7 @@ if [[ "$EUID" -ne 0 ]]; then
   
   # *** Spack settings ***
   if [[ -z ${SPACK_ROOT} ]]; then
-    export SPACK_ROOT=$(readConfigOrDefault "spack_root")
+    export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
   fi
   if [[ -n ${SPACK_ROOT} ]]; then 
     initSpack

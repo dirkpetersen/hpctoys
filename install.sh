@@ -7,12 +7,12 @@ else
   echo 'Your shell does not support ${BASH_SOURCE}. Please use "bash" to setup hpctoys.'
   exit
 fi
-if ! [[ -f etc/profile.d/zzz-users.sh ]]; then 
+if ! [[ -f etc/profile.d/zzz-hpctoys.sh ]]; then 
   echo "You need to switch to the root 
     of the Hpctoys Git repos before running this script."
   exit
 fi
-. etc/profile.d/zzz-users.sh
+. etc/profile.d/zzz-hpctoys.sh
 MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXX")
 SCR=${0##*/}
 SUBCMD=$1
@@ -53,22 +53,22 @@ iother() {
     PKGDNF="gcc openssl-devel bzip2-devel libffi-devel "
     PKGAPT="build-essential uuid-dev zlib1g-dev liblzma-dev libbz2-dev libgdbm-dev "
     PKGAPT+="libssl-dev  libreadline-dev libsqlite3-dev libncurses5-dev libffi-dev "
-    if inpath 'dnf'; then
+    if htyInPath 'dnf'; then
       echoerr "\n *** Installing packages :${PKG}${PKGDNF}"
       sudo dnf -y groupinstall "Development Tools" #--with-optional
       sudo dnf install -y ${PKG}${PKGDNF}
-    elif inpath 'yum'; then
+    elif htyInPath 'yum'; then
       echoerr "\n *** Installing packages :${PKG}${PKGDNF}"
       sudo yum -y groupinstall "Development Tools" #--with-optional
       sudo yum install -y ${PKG}${PKGDNF}
-    elif inpath 'apt'; then
+    elif htyInPath 'apt'; then
       echoerr "\n *** Installing packages :${PKG}${PKGAPT}"
       sudo apt install -y ${PKG}${PKGAPT}
     fi   
   else
     MISS=""
-    ! inpath 'curl'  && MISS+="curl "
-    ! inpath 'pkg-config'  && MISS+="pkgconf "
+    ! htyInPath 'curl'  && MISS+="curl "
+    ! htyInPath 'pkg-config'  && MISS+="pkgconf "
     if [[ -n ${MISS} ]]; then
       echoerr "\n Missing packages! Please have these packages installed:\n ${MISS}"
       exit 1      
@@ -107,7 +107,7 @@ iother() {
 
   # optionally install libffi >= 3.0.0
   CURRVER=$(pkg-config --silence-errors --modversion libffi)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
     VER="3.4.2"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a ]]; then
       echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
@@ -134,7 +134,7 @@ iother() {
 
   # optionally install zlib >=1
   CURRVER=$(pkg-config --silence-errors --modversion zlib)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "1.0") ]]; then
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "1.0") ]]; then
     VER="1.2.12"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libz.a ]]; then
       echoerr "\n * Installing 'zlib for glib-2.0' ${VER} ... *\n"
@@ -158,7 +158,7 @@ iother() {
 
   # optionally install readline >= 3.0.0
   CURRVER=$(pkg-config --silence-errors --modversion readline)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "3.0.0") ]]; then
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
     VER="8.1"
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
       echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
@@ -187,7 +187,7 @@ iother() {
 
 # installing dialog util for ncurses GUI
 idialog() {
-if ! inpath 'dialog'; then
+if ! htyInPath 'dialog'; then
   # if ncurses is garbled run 'sudo update-locale' 
   # or 'sudo update-locale LANG=en_US.UTF-8'
   echoerr "\n * Installing 'dialog' ... *\n"
@@ -216,7 +216,7 @@ fi
 
 # installing jq, the json processor 
 ijq() {
-if ! inpath 'jq'; then
+if ! htyInPath 'jq'; then
   VER="1.6"
   echoerr "\n * Installing 'jq' ${VER} ... *\n"
   sleep 1
@@ -229,7 +229,7 @@ fi
 
 # installing yq, the yaml processor
 iyq() {
-if ! inpath 'yq'; then
+if ! htyInPath 'yq'; then
   VER=4.25.3
   echoerr "\n * Installing 'yq' ${VER} ... *\n"
   sleep 1
@@ -242,7 +242,7 @@ fi
 
 # Keychain
 ikeychain() {
-if ! inpath 'keychain'; then
+if ! htyInPath 'keychain'; then
   VER="2.8.5"
   echoerr "\n * Installing 'keychain' ${VER} ... *\n"
   sleep 1
@@ -265,7 +265,7 @@ fi
 
 # Github CLI
 igithub() {
-if ! inpath 'gh'; then
+if ! htyInPath 'gh'; then
   VER="2.13.0"
   echoerr "\n * Installing 'github cli' ${VER} ... *\n"
   sleep 1
@@ -313,7 +313,7 @@ fi
 # Midnight Commander 
 imc() {
 #if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
-if ! inpath 'mc'; then
+if ! htyInPath 'mc'; then
   #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
   export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0" 
   export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
@@ -323,7 +323,7 @@ if ! inpath 'mc'; then
 
   # currently disabled --- optionally install libpcre >= 8.13
   CURRVER="8.45"  #$(pkg-config --silence-errors --modversion libpcre)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "8.13") ]]; then
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "8.13") ]]; then
     VER="8.45"
     echoerr "\n * Installing 'pcre for mc' ${VER} ... *\n"
     cd ${MYTMP}
@@ -347,7 +347,7 @@ if ! inpath 'mc'; then
   # compiling gettext from source is not detected by glib-2
   #https://ftp.gnu.org/gnu/gettext/gettext-0.21.tar.xz
   #disabled
-  if ! inpath 'msgfmt'; then
+  if ! htyInPath 'msgfmt'; then
     echo '#! /bin/bash' > ${HPCTOYS_ROOT}/bin/msgfmt
     echo 'echo "This is a dummy wrapper for msgfmt"' \
                       >> ${HPCTOYS_ROOT}/bin/msgfmt
@@ -360,7 +360,7 @@ if ! inpath 'mc'; then
 
   # optionally install glib-2 >= 2.30
   CURRVER=$(pkg-config --silence-errors --modversion glib-2.0)
-  if [[ $(intVersion ${CURRVER}) -lt $(intVersion "2.30") ]]; then
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "2.30") ]]; then
     VER="2.56"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
     sleep 1
@@ -477,7 +477,7 @@ fi
 # OpenSSL needed for lpython
 iopenssl() {
 SSLVER=$(pkg-config --silence-errors --modversion openssl)
-if [[ $(intVersion ${SSLVER}) -lt $(intVersion "1.1.1") ]]; then
+if [[ $(htyIntVersion ${SSLVER}) -lt $(htyIntVersion "1.1.1") ]]; then
   if ! [[ -f "${HPCTOYS_ROOT}/opt/openssl/bin/openssl" ]]; then
     VER="1_1_1p"
     echoerr "\n * Installing 'openssl' ${VER} ... *\n"
@@ -520,11 +520,11 @@ VER_B="" # beta ver such as b1, b2 or b3
 cd ${MYTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   echoerr "\n * Installing 'lpython' ${VER}${VER_B} ... *\n"
-  #loadLmod gcc
+  #htyLoadLmod gcc
   #libffi sqlite ncurses readline libreadline
   GCCVER=$(gcc -dumpfullversion)
   #echo -e "\n Using GCC ${GCCVER} ...\n"
-  if [[ $(intVersion ${GCCVER}) -ge $(intVersion "8.1.0") ]]; then
+  if [[ $(htyIntVersion ${GCCVER}) -ge $(htyIntVersion "8.1.0") ]]; then
     echo -e "\n *** compiling Python ${VER}${VER_B} with optimizations using GCC ${GCCVER}\n"
     EXTRA_TUNING_OPTIONS="--enable-optimizations" #--disable-test-modules"
     sleep 2
@@ -542,15 +542,15 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     if [[ -d ${HPCTOYS_ROOT}/opt/openssl/lib ]]; then 
       export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HPCTOYS_ROOT}/opt/openssl/lib
       OPENSSL_OPTIONS="--with-openssl=${OPENSSL_ROOT}"
-      addLineToFile '_socket socketmodule.c' Modules/Setup
-      addLineToFile 'OPENSSL=${HPCTOYS_ROOT}/opt/openssl' Modules/Setup
+      htyAddLineToFile '_socket socketmodule.c' Modules/Setup
+      htyAddLineToFile 'OPENSSL=${HPCTOYS_ROOT}/opt/openssl' Modules/Setup
       #if [[ -z ${EXTRA_TUNING_OPTIONS} ]]; then
         # this builds statically linked
-        addLineToFile '_ssl _ssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libssl.a -Wl,--exclude-libs,libssl.a -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
-        addLineToFile '_hashlib _hashopenssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
+        htyAddLineToFile '_ssl _ssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libssl.a -Wl,--exclude-libs,libssl.a -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
+        htyAddLineToFile '_hashlib _hashopenssl.c -I$(OPENSSL)/include -L$(OPENSSL)/lib -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a' Modules/Setup
       #else
-        #addLineToFile '_ssl _ssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) $(OPENSSL_LIBS)' Modules/Setup
-        #addLineToFile '_hashlib _hashopenssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) -lcrypto' Modules/Setup
+        #htyAddLineToFile '_ssl _ssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) $(OPENSSL_LIBS)' Modules/Setup
+        #htyAddLineToFile '_hashlib _hashopenssl.c $(OPENSSL_INCLUDES) $(OPENSSL_LDFLAGS) -lcrypto' Modules/Setup
       #fi
     fi
     #LDFLAGS     linker flags, e.g. -L<lib dir>
@@ -574,8 +574,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
-    replaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
-    replaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
+    htyReplaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
+    htyReplaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
     #exit 1
     make -j ${RUNCPUS} 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
@@ -661,7 +661,7 @@ else
 fi
 
 # initialize HPC Toys variables and paths for non-login shell (batch mode)
-addLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-users.sh" ${MYRC}
+htyAddLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh" ${MYRC}
 
 # replace dark blue color in vim and dir list
 COL=$(dircolors)
@@ -692,75 +692,6 @@ fi
 
 ########### settings requiring user input ##################################  
 
-_filesPlain() {
-MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
-[[ -z $1 ]] && echo ${MSG} && return 1
-if [[ -z $2 ]]; then
-  ls -1 $1
-else
-  CD=$(pwd)
-  cd $1
-  ls -1 $2
-  cd ${CD}
-fi
-}
-
-_isItemInList() {
-MSG="${FUNCNAME[0]} <item> <list of items>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-for X in $2; do
-  [[ "$1" == "$X" ]] && return 0
-done
-return 1
-}
-
-_inputbox() {
-#read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
-MSG="${FUNCNAME[0]} <message> <default-value>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-RES="" 
-while [[ "$RES" == "" ]]; do 
-  RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
-  RET=$?
-  #echo $RET:$RES && sleep 3
-  if [[ $RET -ne 0 ]]; then
-    clear
-    echoerr "\n Setup canceled, exiting ...\n"
-    exit
-  fi
-done
-clear
-
-}
-
-_checklist() {
-# read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
-MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-OPT=""
-RES=""
-i=0
-for E in $2; do 
-  let i++
-  if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
-    OPT+="$E $i on "
-  else 
-    OPT+="$E $i off "
-  fi  
-done
-while [[ "$RES" == "" ]]; do
-  RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
-  RET=$?
-  #echo $RET:$RES && sleep 3
-  if [[ $RET -ne 0 ]]; then
-    clear
-    echoerr "\n Setup canceled, exiting ...\n"
-    exit
-  fi
-done
-clear
-}
-
 iquestions_user() {
 
 #Examples:
@@ -782,19 +713,19 @@ EOF
 )
 
 # available ssh keys and default keys
-KEYS=$(_filesPlain ~/.ssh "*.pub")
+KEYS=$(htyFilesPlain ~/.ssh "*.pub")
 SELKEYS=""
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
-  addLineToFile 'eval $(keychain --eval id_ed25519)' ${PROF}
+  htyAddLineToFile 'eval $(keychain --eval id_ed25519)' ${PROF}
   KEYS="id_ed25519.pub"
 fi 
 
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
-  if _isItemInList "id_ed25519.pub" "${KEYS}"; then
+  if htyIsItemInList "id_ed25519.pub" "${KEYS}"; then
     SELKEYS="id_ed25519.pub"
-  elif _isItemInList "id_rsa.pub" "${KEYS}"; then
+  elif htyIsItemInList "id_rsa.pub" "${KEYS}"; then
     SELKEYS="id_rsa.pub"
   fi
 fi
@@ -808,7 +739,7 @@ key is loaded. Please confirm.
 EOF
 )
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
-  _checklist "${QST}" "${KEYS}" "${SELKEYS}"
+  htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}"
 elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
   RES=$KEYS
 else
@@ -840,7 +771,7 @@ enter your first and last name or confirm the
 default setting. 
 EOF
 )
-_inputbox "${QST}" "$(git config --global user.name)"
+htyDialogInputbox "${QST}" "$(git config --global user.name)"
 git config --global user.name "${RES}"
 
 
@@ -853,7 +784,7 @@ This will be your work email address in most
 cases. 
 EOF
 )
-_inputbox "${QST}" "$(git config --global user.email)"
+htyDialogInputbox "${QST}" "$(git config --global user.email)"
 git config --global user.email "${RES}"
 
 
@@ -878,7 +809,7 @@ about two minutes. Once you have a new login name,
 come back here and enter it below. 
 EOF
 )
-_inputbox "${QST}" "$(readConfigOrDefault github_login)"
+htyDialogInputbox "${QST}" "$(htyReadConfigOrDefault github_login)"
 echo "${RES}" > ~/.config/hpctoys/github_login
 GHL=$(cat ~/.config/hpctoys/github_login)
 echoerr " connecting to github.com/${GHL} ..."
@@ -922,7 +853,7 @@ is already pre-selected for you.
 EOF
 )
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
-  _checklist "${QST}" "${KEYS}" "${SELKEYS}"
+  htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}"
 elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
   RES=${KEYS}
 else
