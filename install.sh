@@ -315,12 +315,6 @@ imc() {
 #if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 if ! htyInPath 'mc'; then
   #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
-  export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0" 
-  export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
-         GLIB_CFLAGS+=" -I${HPCTOYS_ROOT}/opt/mc/lib/glib-2.0/include"
-  #export PCRE_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lpcre"
-  #export PCRE_CFLAGS="-IL${HPCTOYS_ROOT}/opt/mc/include"
-
   # currently disabled --- optionally install libpcre >= 8.13
   CURRVER="8.45"  #$(pkg-config --silence-errors --modversion libpcre)
   if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "8.13") ]]; then
@@ -342,6 +336,8 @@ if ! htyInPath 'mc'; then
       make install
       [[ "$?" -ne 0 ]] && ERRLIST+=" pcre"
     fi
+    #export PCRE_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lpcre"
+    #export PCRE_CFLAGS="-IL${HPCTOYS_ROOT}/opt/mc/include"
   fi
 
   # compiling gettext from source is not detected by glib-2
@@ -372,7 +368,7 @@ if ! htyInPath 'mc'; then
       tar xf glib-${VER}.0.tar.xz
       cd glib-${VER}.0
       ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
-             --disable-libmount --disable-selinux  --with-pcre=internal --without-gettext
+             --disable-libmount --disable-selinux  --with-pcre=internal
       #static & dynamic: make && make check && make install-all
       #make static
       #make install-static
@@ -381,6 +377,9 @@ if ! htyInPath 'mc'; then
       # shown an error even though it installs correctly 
       #[[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
     fi
+    export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0"
+    export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
+           GLIB_CFLAGS+=" -I${HPCTOYS_ROOT}/opt/mc/lib/glib-2.0/include"
   fi
 
   # install s-lang dependency
@@ -403,6 +402,7 @@ if ! htyInPath 'mc'; then
     make install-static
     [[ "$?" -ne 0 ]] && ERRLIST+=" s-lang"
   fi
+
   # then install MC
   VER="4.8.26" # .27 and .28 fail with s-lang compile errors
   echoerr "\n * Installing 'mc' ${VER} ... *\n"
@@ -832,7 +832,7 @@ out in your public Github profile:
    Organization:  ${GHORG} 
        Location:  ${GHLOC} 
 
-If any of this information is missing please go 
+If any of this information is 'null' please go 
 back to https://github.com/settings/profile 
 [Ctrl+Click] and update your profile. 
 [last updated: ${GHUPD}]
