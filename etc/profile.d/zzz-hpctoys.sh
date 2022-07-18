@@ -30,23 +30,25 @@ htyAddLineToFile() {
   fi
 }
 htyAddLineBelowLineToFile() {
-  # htyAddLineBelowLineToFile <add-this> <below-this> <filename>
-  if ! grep -q "^$1" "$3"; then
-    sed -i "|^$2*|a $1" "$3"
+  MSG="${FUNCNAME[0]} <below-this> <replacement-line> <file-that-exists>"
+  [[ ! -f $3 ]] && echo ${MSG} && return 1
+  if ! grep -q "^$2" "$3"; then
+    sed -i '/^'"${1}"'.*/a '"${2}" "$3"
   fi
 }
 htyReplaceLineInFile() {
   MSG="${FUNCNAME[0]} <line-to-be-replaced> <replacement-line> <file-that-exists>"
   [[ ! -f $3 ]] && echo ${MSG} && return 1
   if ! grep -q "^$2" "$3"; then
-    sed -i "s|^$1*|$2|g" "$3"
+    sed -i 's|^'"${1}"'.*|'"${2}"'|g' "$3"
   fi
 }
-htyReplaceCommentLineInFile() {
+htyCommentAndReplaceLineInFile() {
   MSG="${FUNCNAME[0]} <line-to-be-commented> <replacement-line> <file-that-exists>"
   [[ ! -f $3 ]] && echo ${MSG} && return 1
   if ! grep -q "^$2" "$3"; then
-    sed -i "s|^$1|#$1\n$2|g" "$3"
+    sed -i 's|^'"${1}"'|#'"${1}"'|g' "$3"
+    sed -i '/^\#'"${1}"'.*/a '"${2}" "$3"
   fi
 }
 
@@ -172,9 +174,6 @@ htyLoadLmod() {
   done
 }
 
-
-
-
 initSpack(){
   # initSpack 
   if [[ -d "${SPACK_ROOT}" ]]; then
@@ -186,6 +185,7 @@ initSpack(){
     fi
   fi
 }
+
 initEasybuild(){
   # Easybuild Settings
   EASYBUILD_JOB_CORES=4
@@ -199,6 +199,7 @@ initEasybuild(){
   EASYBUILD_UPDATE_MODULES_TOOL_CACHE=True
   #EASYBUILD_ROBOT_PATHS=/home/scicompappsvc/.local/easybuild/easyconfigs:/app/eb/fh/fh_easyconfigs/:/app/eb/mcc/mcc_easyconfigs/
 }
+
 initLpython() {
   export LPYTHON="/tmp/hpctoys/lpython/bin/python${LPYTHONVER::-2}"
   export PATH="$PATH:${HPCTOYS_ROOT}/opt/python/bin:/tmp/hpctoys/lpython/bin"
@@ -233,7 +234,7 @@ export -f htyMkdir
 export -f htyAddLineToFile
 export -f htyAddLineBelowLineToFile
 export -f htyReplaceLineInFile
-export -f htyReplaceCommentLineInFile
+export -f htyCommentAndReplaceLineInFile
 export -f htyFilesPlain
 export -f htyIsItemInList
 export -f htyDialogInputbox
@@ -266,7 +267,7 @@ if [[ "$EUID" -ne 0 ]]; then
     umask 0007
   fi
   # Generic Environment variables and PATHs
-  if  "${GID_SUPERUSERS}"; then 
+  if htyInGroup ${GID_SUPERUSERS}; then 
     htyAppendPath "${GR}/sbin"
   fi
   htyPrependPath "${GR}/bin" "${GR}/opt/python/bin"

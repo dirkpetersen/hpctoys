@@ -5,7 +5,8 @@ pandas
 rich
 rich-cli
 textual
-paramiko
+#paramiko banana
+ballermann
 pyyaml
 pythondialog
 easybuild

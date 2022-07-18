@@ -574,8 +574,8 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
-    htyReplaceCommentLineInFile "${SEA}" "${REP}" Lib/site.py
-    htyReplaceCommentLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
+    htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/site.py
+    htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
     #exit 1
     make -j ${RUNCPUS} 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
