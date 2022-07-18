@@ -23,6 +23,8 @@ htyMkdir(){
 }
 htyAddLineToFile() {  
   # htyAddLineToFile <line> <filename>
+  MSG="${FUNCNAME[0]} <line-to-be-added> <file-that-exists>"
+  [[ ! -f $2 ]] && echo ${MSG} && return 1
   if ! grep -q "^$1" "$2"; then
     echo "$1" >> "$2"
   fi
@@ -31,6 +33,13 @@ htyAddLineBelowLineToFile() {
   # htyAddLineBelowLineToFile <add-this> <below-this> <filename>
   if ! grep -q "^$1" "$3"; then
     sed -i "|^$2*|a $1" "$3"
+  fi
+}
+htyReplaceLineInFile() {
+  MSG="${FUNCNAME[0]} <line-to-be-replaced> <replacement-line> <file-that-exists>"
+  [[ ! -f $3 ]] && echo ${MSG} && return 1
+  if ! grep -q "^$2" "$3"; then
+    sed -i "s|^$1*|$2|g" "$3"
   fi
 }
 htyReplaceCommentLineInFile() {
@@ -42,74 +51,74 @@ htyReplaceCommentLineInFile() {
 }
 
 htyFilesPlain() {
-MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
-[[ -z $1 ]] && echo ${MSG} && return 1
-if [[ -z $2 ]]; then
-  ls -1 $1
-else
-  CD=$(pwd)
-  cd $1
-  ls -1 $2
-  cd ${CD}
-fi
+  MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  if [[ -z $2 ]]; then
+    ls -1 $1
+  else
+    CD=$(pwd)
+    cd $1
+    ls -1 $2
+    cd ${CD}
+  fi
 }
 
 htyIsItemInList() {
-MSG="${FUNCNAME[0]} <item> <list of items>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-for X in $2; do
-  [[ "$1" == "$X" ]] && return 0
-done
-return 1
+  MSG="${FUNCNAME[0]} <item> <list of items>"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  for X in $2; do
+    [[ "$1" == "$X" ]] && return 0
+  done
+  return 1
 }
 
 htyDialogInputbox() {
-#read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
-MSG="${FUNCNAME[0]} <message> <default-value>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-RES="" 
-while [[ "$RES" == "" ]]; do 
-  RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
-  RET=$?
-  #echo $RET:$RES && sleep 3
-  if [[ $RET -ne 0 ]]; then
-    clear
-    echoerr "\n Setup canceled, exiting ...\n"
-    exit
-  fi
-done
-clear
-
+  # wrapper for unix dialog --inputbox
+  #read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
+  MSG="${FUNCNAME[0]} <message> <default-value>"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  RES="" 
+  while [[ "$RES" == "" ]]; do 
+    RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
+    RET=$?
+    #echo $RET:$RES && sleep 3
+    if [[ $RET -ne 0 ]]; then
+      clear
+      echoerr "\n Setup canceled, exiting ...\n"
+      exit
+    fi
+  done
+  clear
 }
 
 htyDialogChecklist() {
-# read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
-MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
-[[ -z $2 ]] && echo ${MSG} && return 1
-OPT=""
-RES=""
-i=0
-for E in $2; do 
-  let i++
-  if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
-    OPT+="$E $i on "
-  else 
-    OPT+="$E $i off "
-  fi  
-done
-while [[ "$RES" == "" ]]; do
-  RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
-  RET=$?
-  #echo $RET:$RES && sleep 3
-  if [[ $RET -ne 0 ]]; then
-    clear
-    echoerr "\n Setup canceled, exiting ...\n"
-    exit
-  fi
-done
-clear
+  # wrapper for unix dialog --checklist
+  #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
+  MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  OPT=""
+  RES=""
+  i=0
+  for E in $2; do 
+    let i++
+    if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
+      OPT+="$E $i on "
+    else 
+      OPT+="$E $i off "
+    fi  
+  done
+  while [[ "$RES" == "" ]]; do
+    RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
+    RET=$?
+    #echo $RET:$RES && sleep 3
+    if [[ $RET -ne 0 ]]; then
+      clear
+      echoerr "\n Setup canceled, exiting ...\n"
+      exit
+    fi
+  done
+  clear
 }
-
 
 htyReadConfigOrDefault() {
   # htyReadConfigOrDefault <setting> <default>
@@ -223,6 +232,7 @@ export -f htyInPath
 export -f htyMkdir  
 export -f htyAddLineToFile
 export -f htyAddLineBelowLineToFile
+export -f htyReplaceLineInFile
 export -f htyReplaceCommentLineInFile
 export -f htyFilesPlain
 export -f htyIsItemInList
