@@ -1,0 +1,57 @@
+[
+{
+  "title": "Manage your files ",
+  "key": "M",
+  "text": ["copy/move, edit ",
+           "files with Midnight ",
+           "Commander "], 
+  "cmd": "mc",
+  "url": "https://google.com"
+},
+{
+  "title": "Submit Cluster Job ",
+  "key": "S",
+  "text": ["Submit simple R job ",
+           "with multiple data ",
+           "files using Slurm "],
+  "cmd": "hty submit",
+  "url": "https://google.com"
+},
+{
+  "title": "Interactive Job ",
+  "key": "I",
+  "text": ["Submit interactive ",
+           "Slurm job using the ",
+           "grabnode tool "],
+  "cmd": "grabnode",
+  "url": "https://google.com"
+},
+{
+  "title": "Tmux Sessions",
+  "key": "T",
+  "text": ["Create a long running ",
+           "Terminal Session you ",
+           "leave and join later"],
+  "cmd": "hty longterm",
+  "url": "https://google.com"
+},
+{
+  "title": "Reconfigure HPC Toys",
+  "key": "L",
+  "text": ["Submit simple R jobs ",
+           "using multiple data ",
+           "to the cluster "],
+  "cmd": "${HPCTOYS_ROOT}/install.sh",
+  "url": "https://google.com"
+},
+{
+  "title": "Exit Menu",
+  "key": "X",
+  "text": ["after exiting you can ",
+           "run 'hpctoys' to restart ",
+           "this hpctoys menu. "],
+  "cmd": "exit",
+  "url": "https://google.com"
+}
+]
+
