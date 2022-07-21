@@ -4,6 +4,11 @@
 #
 SCR=${0##*/}
 SUBCMD=$1
+ME=$(whoami)
+
+! htyRootCheck && exit
+export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh
 
 #initLpython
 
@@ -14,22 +19,64 @@ while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
 done
 shift $((OPTIND - 1))
 
-if [[ -z ${HPCTOYS_ROOT} ]]; then
-  echo "HPCTOYS_ROOT envionment variable not set, exiting..."
-  exit
-fi
 
-tmux(){
-  
-  echo " ${SCR} create <server-name>"
-  echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
-  echo -e "\nfor example:"
-  echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
+# various functions are executed as subcommands 
+
+longterm(){
+  SN=$(tmux list-sessions -F "#S" 2>/dev/null)
+  if [[ -z ${SN} ]]; then
+QST=$(cat << EOF
+Starting a new TMUX session. This will allow you
+to have one or more very long running terminal
+sessions. You will be able to re-attach to these
+sessions even after you disconnected for a long
+weekend. If you type 'CTRL+B' and then 'D' you
+can detach from the terminal instead of exiting.
+Run: tmux new-session -s ${ME}1
+EOF
+)
+    dialog --msgbox  "${QST}" 0 0  
+    clear
+    htyEcho "Run: tmux new-session -s \"${ME}1\"" 3 
+    tmux new-session -s "${ME}1"
+    return 0
+  fi
+  SN+=" new-session"
+QST=$(cat << EOF
+Please select the terminal session you would
+like to re-connect to. You can also create a 
+new session. 
+You will be able to re-attach to these sessions
+even after you disconnected for a long weekend. 
+If you type 'CTRL+B' and then 'D' you can detach 
+from the terminal instead of exiting.
+EOF
+)
+  if ! htyDialogMenu "${QST}" "${SN}"; then 
+    return 1
+  fi
+  if [[ "${RES}" == "new-session" ]]; then
+QST=$(cat << EOF
+Please confirm the session name or enter a new
+session name, for example a project name you 
+will be working on for a while. 
+If you type 'CTRL+B' and then 'D' you can detach
+from the terminal instead of exiting.
+EOF
+)
+    SID=$(wc -w <<<${SN})
+    ! htyDialogInputbox "${QST}" "${ME}${SID}" && return 1
+    S=${RES// /_}   
+    htyEcho "Run: tmux new-session -s \"${S}\"" 3
+    tmux new-session -s "$S"
+  elif [[ -n ${RES} ]]; then
+    htyEcho "Run: tmux attach -t \"${RES}\"" 3
+    tmux attach -t "${RES}"
+  fi
 }
 
-
 help(){
-  echo " ${SCR} create <server-name>"
+  echo " ${SCR} termerver-name>"
   echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
   echo -e "\nfor example:"
   echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
@@ -45,8 +92,8 @@ args() {
   echo ""
 }
 
-if [[ ${SUBCMD} =~ ^(tmux|help|args)$ ]]; then
-  ${SUBCMD} "$@"
+if [[ ${SUBCMD} =~ ^(longterm|help|args)$ ]]; then
+  ${SUBCMD} "$@"  
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
   help

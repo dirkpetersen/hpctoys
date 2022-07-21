@@ -21,6 +21,31 @@ htyMkdir(){
     mkdir -p  "$1"
   fi
 }
+htyEcho() {
+  MSG="${FUNCNAME[0]} <colored-msg> [sleep-time]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  if htyInPath "tput"; then
+    COLEND=""
+    COLRED=""
+    COLYEL=""
+    if test -t 1;then
+      NCOL=$(tput colors)
+      if test -n "$NCOL" && test $NCOL -ge 4; then
+        COLEND=$(tput sgr0) # reset the foreground colour
+        COLRED=$(tput setaf 1)
+        COLYEL=$(tput setaf 3)
+      fi
+    fi
+    echo -e " ${COLYEL}$1${COLEND}" 1>&2
+  else
+    echo -e "$1" 1>&2
+  fi
+  if test -n $2; then 
+    if [[ $2 -gt 0 ]]; then
+      sleep $2
+    fi
+  fi
+}
 htyAddLineToFile() {  
   # htyAddLineToFile <line> <filename>
   MSG="${FUNCNAME[0]} <line-to-be-added> <file-that-exists>"
@@ -86,8 +111,9 @@ htyDialogInputbox() {
     #echo $RET:$RES && sleep 3
     if [[ $RET -ne 0 ]]; then
       clear
-      echoerr "\n Setup canceled, exiting ...\n"
-      exit
+      RES=""
+      echoerr "\n  htyDialogInputbox canceled  ...\n"
+      return 1
     fi
   done
   clear
@@ -115,8 +141,9 @@ htyDialogChecklist() {
     #echo $RET:$RES && sleep 3
     if [[ $RET -ne 0 ]]; then
       clear
-      echoerr "\n Setup canceled, exiting ...\n"
-      exit
+      RES=""
+      echoerr "\n  htyDialogChecklist canceled  ...\n"
+      return 1
     fi
   done
   clear
@@ -132,7 +159,7 @@ htyDialogMenu() {
   i=0
   for E in $2; do
     let i++
-    OPT+="$i $E "
+    OPT+="$E $i "
   done
   while [[ "$RES" == "" ]]; do
     RES=$(dialog --menu "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty)
@@ -140,8 +167,9 @@ htyDialogMenu() {
     #echo $RET:$RES && sleep 3
     if [[ $RET -ne 0 ]]; then
       clear
-      echoerr "\n Setup canceled, exiting ...\n"
-      exit
+      RES=""
+      echoerr "\n  htyDialogMenu canceled ...\n"
+      return 1
     fi
   done
   clear
@@ -151,7 +179,6 @@ htyDialogMenu() {
 #dialog --pause "This is a 30 second pause" 0 0 30
 #dialog --menu "Choose the option" 12 45 25 1 "apple" 2 "banana" 3 "mango"
 #dialog --radiolist "radiolist" 15 10 10 "apple" 5 'off' 'banana' 2 'off' 'coffee' 3 'off'
-
 
 htyReadConfigOrDefault() {
   # htyReadConfigOrDefault <setting> <default>
@@ -201,8 +228,172 @@ htyLoadLmod() {
     AVAIL="${LERR}"
   fi
   for M in "$@"; do
-    ml $(grep -i "^${M}" <<< "${AVAIL}" | tail -1)
+    ml $(printf "${AVAIL}" | grep -i "^${M}" | tail -1)
   done
+}
+
+htyInstallSource() {
+  # will create a tmpdir in ramdisk
+  # and run both htyDownloadUntarCd
+  # and htyConfigureMakeInstall fully
+  # automated 
+  MSG="${FUNCNAME[0]} <url> [prefix_options] [cmd]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  ! htyRootCheck && return 1
+  MYTMP="/dev/shm/$(whoami)"
+  mkdir -p ${MYTMP}
+  [[ ! -d ${MYTMP} ]] && MYTMP="/dev/shm" 
+  [[ -z ${INTMP} ]] && INTMP=$(mktemp -d "${MYTMP}/hpctoys.XXX")
+  cd ${INTMP}
+  if htyDownloadUntarCd "$1"; then
+    if htyConfigureMakeInstall "$2" "$3"; then
+      htyEcho "App was installed from ${INTMP}"
+    else 
+      return 1
+    fi
+  else 
+    return 1
+  fi
+  return 0
+}
+
+htyDownloadUntarCd() {
+  # will download and untar the URL in build DIR 
+  # and cd to that build dir, requires ${INTMP} 
+  # and ${ERRLIST} to be set   
+  MSG="${FUNCNAME[0]} <url> [cd-prefix]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  ! htyRootCheck && return 1
+  DURL="$1"
+  TARFILE="${DURL##*/}"
+  BASENAME="${TARFILE%%.tar*}"
+  # get left of first dash in filename or else first dot
+  [[ ${BASENAME} == ${TARFILE} ]] && BASENAME="${TARFILE%%.tgz}"
+  APPNAME="${TARFILE%%-*}"
+  # get left of first dash in filename or else first dot 
+  [[ ${APPNAME} == ${TARFILE} ]] && APPNAME="${TARFILE%%.*}"
+  htyEcho "\n* Downloading ${APPNAME} ... *\n"
+  sleep 1
+  [[ -n ${INTMP} ]] && cd ${INTMP}
+  curl -OkL ${DURL}
+  if [[ -f ${TARFILE} ]]; then
+    htyEcho "untarring ${TARFILE}"    
+    tar xf ${TARFILE}
+    mkdir -p tarballs
+    mv -f ${TARFILE} ./tarballs/
+    if [[ -n $2 ]]; then
+      htyEcho "cd $2${BASENAME}"
+      cd $2${BASENAME}
+    else
+      htyEcho "cd ${BASENAME}"
+      cd ${BASENAME}
+    fi
+    if [[ "$?" -ne 0 ]]; then
+      # 5 chars should be enough for a quess
+      cd "${BASENAME:0:5}"*
+      if [[ "$?" -ne 0 ]]; then
+        ERRLIST+=" ${BASENAME}"
+        return 1 
+      fi
+    fi
+  else 
+    htyEcho "unable to download ${DURL}, exiting !"
+    ERRLIST+=" ${BASENAME}"
+    return 1 
+  fi
+  htyEcho "current directory: $(pwd)"
+  return 0
+}
+
+htyConfigureMakeInstall(){
+  # will configure; make; make install
+  # if prefix_options is given it will not 
+  # use the default prefix opt/other, if 
+  # cmd is given it creates a symlink in bin.
+  # uses ${CURRDIR} and ${RUNCPUS} if set.
+  # Start dir is the untar dir under the 
+  # current dir or under ${INTMP} if set
+  # example:
+  # htyConfigureMakeInstall opt/test bin/test
+  MSG="${FUNCNAME[0]} [prefix_options] [cmd]"
+  ! htyRootCheck && return 1
+  MYAPP=$(basename $(pwd))
+  if [[ ! -f ./configure ]]; then  
+    htyEcho "./configure script not found" 
+    ERRLIST+=" ${MYAPP}"
+    return 1
+  fi
+  MYDIR='${HPCTOYS_ROOT}/opt/other'
+  MYPRE='--prefix '"${MYDIR}"
+  if [[ -n $1 ]]; then 
+    MYDIR=$(printf $1 | cut -d ' ' -f1)
+    MYPRE='--prefix ${HPCTOYS_ROOT}/'"$1"
+  fi
+  ./configure ${MYPRE}  2>&1 | tee output.configure.out
+  if [[ "$?" -ne 0 ]]; then
+    htyEcho "${MYAPP}: Error running ./configure ${MYPRE}"
+    ERRLIST+=" ${MYAPP}"
+    return 1
+  else
+    htyEcho "${MYAPP}: ./configure successful ${MYPRE}"
+    sleep 1
+  fi
+  MYCPUS=4
+  [[ -n ${RUNCPUS} ]] && MYCPUS=${RUNCPUS}
+  make clean
+  make -j ${MYCPUS} 2>&1 | tee output.make.out
+  if [[ "$?" -ne 0 ]]; then
+    htyEcho "${MYAPP}: Error running  make -j ${MYCPUS}"
+    ERRLIST+=" ${MYAPP}"
+    return 1
+  else 
+    htyEcho "${MYAPP}: compile successful: make -j ${MYCPUS}"
+    sleep 1
+  fi
+  make install 2>&1 | tee output.make.install.out
+  if [[ "$?" -ne 0 ]]; then
+    htyEcho "${MYAPP}: Error running make install"
+    ERRLIST+=" ${MYAPP}"
+    return 1
+  else
+    htyEcho "${MYAPP}: make install successful !"
+  fi
+  if [[ -n $2 ]]; then
+    echoerr " trying to create symlink to $2"
+    if [[ -f ${HPCTOYS_ROOT}/${MYDIR}/$2 ]]; then
+      MYBIN=$(basename $2)
+      ln -sfr "${HPCTOYS_ROOT}/${MYDIR}/$2" "${HPCTOYS_ROOT}/bin/${MYBIN}"
+      if [[ "$?" -eq 0 ]]; then 
+        htyEcho "created sympolic link ${HPCTOYS_ROOT}/bin/${MYBIN}"
+        htyEcho "pointing to ${HPCTOYS_ROOT}/${MYDIR}/$2"
+      else
+        htyEcho "failed creating sympolic link bin/${MYBIN}"
+        ERRLIST+=" ${MYAPP}"
+        return 1
+      fi
+    else
+      htyEcho "Binary does not exist: ${HPCTOYS_ROOT}/${MYDIR}/$2"
+      ERRLIST+=" ${MYAPP}"
+      return 1
+    fi
+  fi
+  [[ -n ${CURRDIR} ]] && cd ${CURRDIR}
+  return 0
+}
+
+htyRootCheck() {
+  if [[ -z ${HPCTOYS_ROOT} ]]; then
+    htyEcho "\n The HPCTOYS_ROOT environment variable is not"
+    htyEcho "set. Please re-run the HPC Toys install.sh script"
+    htyEcho "or run 'source etc/profile.d/zzz-hpctoys.sh at"
+    htyEcho "the root of a HPC toys git repository.\n"
+    return 1
+  fi
+  if ! [[ -d ${HPCTOYS_ROOT} ]]; then
+    htyEcho "HPCTOYS_ROOT directory ${HPCTOYS_ROOT} does not exist."
+    return 1 
+  fi
+  return 0
 }
 
 initSpack(){
@@ -261,7 +452,8 @@ initLpython() {
 export -f echoerr
 export -f htyInGroup
 export -f htyInPath
-export -f htyMkdir  
+export -f htyMkdir 
+export -f htyEcho 
 export -f htyAddLineToFile
 export -f htyAddLineBelowLineToFile
 export -f htyReplaceLineInFile
@@ -274,6 +466,10 @@ export -f htyDialogMenu
 export -f htyReadConfigOrDefault
 export -f htyAppendPath
 export -f htyPrependPath
+export -f htyRootCheck
+export -f htyInstallSource
+export -f htyDownloadUntarCd
+export -f htyConfigureMakeInstall
 export -f htyIntVersion
 export -f htyLoadLmod
 

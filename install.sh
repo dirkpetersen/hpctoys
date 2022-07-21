@@ -13,7 +13,7 @@ if ! [[ -f etc/profile.d/zzz-hpctoys.sh ]]; then
   exit
 fi
 . etc/profile.d/zzz-hpctoys.sh
-MYTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXX")
+INTMP=$(mktemp -d "${TMPDIR}/hpctoys.XXX")
 SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
@@ -43,11 +43,11 @@ if [[ $? -eq 0 ]]; then
   exit
 fi
 
-# installing generic (other) dependencies 
-iother() {
-  
-  # install OS PKG if we have sudo access now 
-  if sudo -n true 2>/dev/null; then 
+
+ipackages() {
+
+  # install OS PKG if we have sudo access now
+  if sudo -n true 2>/dev/null; then
     echoerr "\n Installing packages with Sudo access"
     PKG="vim jq mc dialog pkgconf gettext curl "
     PKGDNF="gcc openssl-devel bzip2-devel libffi-devel "
@@ -64,17 +64,23 @@ iother() {
     elif htyInPath 'apt'; then
       echoerr "\n *** Installing packages :${PKG}${PKGAPT}"
       sudo apt install -y ${PKG}${PKGAPT}
-    fi   
+    fi
   else
     MISS=""
     ! htyInPath 'curl'  && MISS+="curl "
     ! htyInPath 'pkg-config'  && MISS+="pkgconf "
     if [[ -n ${MISS} ]]; then
       echoerr "\n Missing packages! Please have these packages installed:\n ${MISS}"
-      exit 1      
+      exit 1
     fi
-  fi  
- 
+  fi
+
+}
+
+
+# installing generic (other) dependencies 
+iother() {
+  
   # optionally install any version of ncurses 
   NCURSESOPT=''
   if [[ -z $(pkg-config --silence-errors --modversion ncurses) ]]; then
@@ -82,27 +88,13 @@ iother() {
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libncurses.a ]]; then
       echoerr "\n * Installing 'ncurses' lib for 'dialog' ... *\n"
       sleep 1
-      cd ${MYTMP}
+      cd ${INTMP}
       DURL="https://ftp.gnu.org/pub/gnu/ncurses/ncurses-${VER}.tar.gz"
-      curl -OkL ${DURL}
-      if [[ -f ncurses-${VER}.tar.gz ]]; then
-	tar xf ncurses-${VER}.tar.gz
-	cd ncurses-${VER}
-	./configure --prefix=${HPCTOYS_ROOT}/opt/other
-	make -j ${RUNCPUS}
-	make install
-	if [[ -f ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config ]]; then
-	  ln -sfr ${HPCTOYS_ROOT}/opt/other/bin/ncurses6-config \
-		      ${HPCTOYS_ROOT}/bin/ncurses6-config
-	  NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/other"
-	else
-	  ERRLIST+=" Ncurses"
-	fi
-      else
-	echo "unable to download ${DURL}, exiting !"
-	ERRLIST+=" Ncurses"
+      if ! htyInstallSource "${DURL}" "opt/other" "bin/ncurses6-config"; then
+        htyEcho "Error in htyInstallSource ${DURL}"
       fi
     fi
+    NCURSESOPT="--with-curses-dir=${HPCTOYS_ROOT}/opt/other"
   fi
 
   # optionally install libffi >= 3.0.0
@@ -112,20 +104,10 @@ iother() {
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a ]]; then
       echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
       sleep 1
-      cd ${MYTMP}
+      cd ${INTMP}
       DURL="https://github.com/libffi/libffi/releases/download/v${VER}/libffi-${VER}.tar.gz"
-      echo -e "\n *** Installing ${DURL} ...\n"
-      curl -OkL ${DURL}
-      if [[ -f libffi-${VER}.tar.gz ]]; then
-	tar xf libffi-${VER}.tar.gz
-	cd libffi-${VER}
-	./configure --prefix ${HPCTOYS_ROOT}/opt/other
-	#static & dynamic: make && make check && make install-all
-	#make static
-	#make install-static
-	make -j ${RUNCPUS}
-	make install
-	[[ "$?" -ne 0 ]] && ERRLIST+=" libffi"
+      if ! htyInstallSource "${DURL}" "opt/other"; then
+        htyEcho "Error in htyInstallSource ${DURL}"
       fi
     fi
     export LIBFFI_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lffi"
@@ -139,18 +121,11 @@ iother() {
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libz.a ]]; then
       echoerr "\n * Installing 'zlib for glib-2.0' ${VER} ... *\n"
       sleep 1
-      cd ${MYTMP}
+      cd ${INTMP}
       DURL="https://zlib.net/zlib-${VER}.tar.gz"
-      echo -e "\n *** Installing ${DURL} ...\n"
-      curl -OkL ${DURL}
-      if [[ -f zlib-${VER}.tar.gz ]]; then
-        tar xf zlib-${VER}.tar.gz
-        cd zlib-${VER}
-        ./configure --prefix ${HPCTOYS_ROOT}/opt/other
-        make -j ${RUNCPUS}
-        make install
-        [[ "$?" -ne 0 ]] && ERRLIST+=" zlib"
-      fi      
+      if ! htyInstallSource "${DURL}" "opt/other"; then
+        htyEcho "Error in htyInstallSource ${DURL}"
+      fi
     fi
     export ZLIB_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lz"
     export ZLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
@@ -163,20 +138,10 @@ iother() {
     if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
       echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
       sleep 1
-      cd ${MYTMP}
+      cd ${INTMP}
       DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
-      echo -e "\n *** Installing ${DURL} ...\n"
-      curl -OkL ${DURL}
-      if [[ -f readline-${VER}.tar.gz ]]; then
-	tar xf readline-${VER}.tar.gz
-	cd readline-${VER}
-	./configure --prefix ${HPCTOYS_ROOT}/opt/other
-	#static & dynamic: make && make check && make install-all
-	#make static
-	#make install-static
-	make -j ${RUNCPUS}
-	make install
-	[[ "$?" -ne 0 ]] && ERRLIST+=" readline"
+      if ! htyInstallSource "${DURL}" "opt/other"; then
+        htyEcho "Error in htyInstallSource ${DURL}"
       fi
     fi
     export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
@@ -192,23 +157,10 @@ if ! htyInPath 'dialog'; then
   # or 'sudo update-locale LANG=en_US.UTF-8'
   echoerr "\n * Installing 'dialog' ... *\n"
   sleep 1
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://invisible-island.net/datafiles/release/dialog.tar.gz"
-  curl -OkL ${DURL}
-  if [[ -f dialog.tar.gz ]]; then
-    tar xf dialog.tar.gz
-    cd dialog-*
-    ./configure --prefix ${HPCTOYS_ROOT}/opt/dialog ${NCURSESOPT}
-    make -j ${RUNCPUS}
-    make install
-    if [[ -f ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ]]; then
-      ln -sfr ${HPCTOYS_ROOT}/opt/dialog/bin/dialog ${HPCTOYS_ROOT}/bin/dialog
-    else
-      ERRLIST+=" Dialog"
-    fi
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" Dialog"
+  if ! htyInstallSource "${DURL}" "opt/dialog ${NCURSESOPT}" "bin/dialog"; then
+    htyEcho "Error in htyInstallSource ${DURL}"
   fi
   cd ${CURRDIR}
 fi
@@ -246,18 +198,12 @@ if ! htyInPath 'keychain'; then
   VER="2.8.5"
   echoerr "\n * Installing 'keychain' ${VER} ... *\n"
   sleep 1
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://github.com/funtoo/keychain/archive/refs/tags/${VER}.tar.gz"
-  curl -OkL ${DURL}
-  if [[ -f ${VER}.tar.gz ]]; then
-    tar xf ${VER}.tar.gz
-    cd keychain-${VER}
+  if htyDownloadUntarCd "${DURL}" "keychain-"; then
     make keychain
     cp -f ./keychain ${HPCTOYS_ROOT}/bin/keychain
     chmod +x ${HPCTOYS_ROOT}/bin/keychain
-  else
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" Keychain"
   fi
   cd ${CURRDIR}
 fi
@@ -269,13 +215,13 @@ if ! htyInPath 'gh'; then
   VER="2.13.0"
   echoerr "\n * Installing 'github cli' ${VER} ... *\n"
   sleep 1
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://github.com/cli/cli/releases/download/v${VER}/gh_${VER}_linux_amd64.tar.gz"
   curl -OkL ${DURL}
   if [[ -f gh_${VER}_linux_amd64.tar.gz ]]; then
     tar xf gh_${VER}_linux_amd64.tar.gz
     cd gh_${VER}_linux_amd64
-    #echo $MYTMP
+    #echo $INTMP
     #exit
     cp -f ./bin/* ${HPCTOYS_ROOT}/opt/other/bin/
     mkdir -p ${HPCTOYS_ROOT}/opt/other/share/man/man1
@@ -295,7 +241,7 @@ iawscli2() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/awscli2" ]]; then 
   echoerr "\n * Installing 'awscli2' ${VER} ... *\n"
   sleep 1
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
   curl -OkL ${DURL}
   if [[ -f awscli-exe-linux-x86_64.zip ]]; then
@@ -315,30 +261,6 @@ imc() {
 #if ! [[ -f "${HPCTOYS_ROOT}/opt/mc/bin/mc" ]]; then
 if ! htyInPath 'mc'; then
   #export LD_LIBRARY_PATH=${HPCTOYS_ROOT}/opt/mc/lib:${LD_LIBRARY_PATH}
-  # currently disabled --- optionally install libpcre >= 8.13
-  CURRVER="8.45"  #$(pkg-config --silence-errors --modversion libpcre)
-  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "8.13") ]]; then
-    VER="8.45"
-    echoerr "\n * Installing 'pcre for mc' ${VER} ... *\n"
-    cd ${MYTMP}
-    DURL="https://sourceforge.net/projects/pcre/files/pcre/${VER}/pcre-${VER}.tar.bz2"
-    echo -e "\n *** Installing ${DURL} ...\n"
-    curl -OkL ${DURL}
-    if [[ -f pcre-${VER}.tar.bz2 ]]; then
-      tar xf pcre-${VER}.tar.bz2
-      cd pcre-${VER}
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
-                  --enable-unicode-properties
-      #static & dynamic: make && make check && make install-all
-      #make static
-      #make install-static
-      make -j ${RUNCPUS}
-      make install
-      [[ "$?" -ne 0 ]] && ERRLIST+=" pcre"
-    fi
-    #export PCRE_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lpcre"
-    #export PCRE_CFLAGS="-IL${HPCTOYS_ROOT}/opt/mc/include"
-  fi
 
   # compiling gettext from source is not detected by glib-2
   #https://ftp.gnu.org/gnu/gettext/gettext-0.21.tar.xz
@@ -360,22 +282,12 @@ if ! htyInPath 'mc'; then
     VER="2.56"
     echoerr "\n * Installing 'glib-2.0 for mc' ${VER} ... *\n"
     sleep 1
-    cd ${MYTMP}
+    cd ${INTMP}
     DURL="https://download.gnome.org/sources/glib/${VER}/glib-${VER}.0.tar.xz"
-    echo -e "\n *** Installing ${DURL} ...\n"
-    curl -OkL ${DURL} 
-    if [[ -f glib-${VER}.0.tar.xz ]]; then
-      tar xf glib-${VER}.0.tar.xz
-      cd glib-${VER}.0
-      ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
-             --disable-libmount --disable-selinux  --with-pcre=internal
-      #static & dynamic: make && make check && make install-all
-      #make static
-      #make install-static
-      make -j ${RUNCPUS}
-      make install
-      # shown an error even though it installs correctly 
-      #[[ "$?" -ne 0 ]] && ERRLIST+=" glib-2.0"
+    GLIB_MYOPT="--disable-libmount --disable-selinux  --with-pcre=internal"
+    if ! htyInstallSource "${DURL}" "opt/mc ${GLIB_MYOPT}"; then
+      htyEcho "Installing glib-2.0 failed, exiting mc install"
+      return 1
     fi
     export GLIB_LIBS="-L${HPCTOYS_ROOT}/opt/mc/lib -lglib-2.0"
     export GLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/mc/include/glib-2.0"
@@ -385,17 +297,13 @@ if ! htyInPath 'mc'; then
   # install s-lang dependency
   VER="2.3.2"
   echoerr "\n * Installing 'slang for mc' ${VER} ... *\n"
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL=https://www.jedsoft.org/releases/slang/slang-${VER}.tar.bz2
   DURL2=https://www.jedsoft.org/releases/slang/old/slang-${VER}.tar.bz2
-  echo -e "\n *** Installing ${DURL} ...\n"
-  curl -OkL ${DURL}
-  if ! [[ -f slang-${VER}.tar.bz2 ]]; then
-    curl -OkL ${DURL2}
-  fi
-  if [[ -f slang-${VER}.tar.bz2 ]]; then
-    tar xf slang-${VER}.tar.bz2
-    cd slang-${VER}
+  downok=0
+  htyDownloadUntarCd "${DURL}" && downok=1
+  [[ ! downok ]] && htyDownloadUntarCd "${DURL2}" && downok=1
+  if [[ downok ]]; then
     ./configure --prefix ${HPCTOYS_ROOT}/opt/mc
     #static & dynamic: make && make check && make install-all
     make static  
@@ -406,13 +314,9 @@ if ! htyInPath 'mc'; then
   # then install MC
   VER="4.8.26" # .27 and .28 fail with s-lang compile errors
   echoerr "\n * Installing 'mc' ${VER} ... *\n"
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="http://ftp.midnight-commander.org/mc-${VER}.tar.bz2"
-  echo -e "\n *** Installing ${DURL} ...\n"
-  curl -OkL ${DURL}
-  if [[ -f mc-${VER}.tar.bz2 ]]; then
-    tar xf mc-${VER}.tar.bz2
-    cd mc-${VER}
+  if htyDownloadUntarCd "${DURL}"; then
     ./configure --prefix ${HPCTOYS_ROOT}/opt/mc \
                 --with-slang-includes=${HPCTOYS_ROOT}/opt/mc/include \
                 --with-slang-libs=${HPCTOYS_ROOT}/opt/mc/lib \
@@ -424,9 +328,6 @@ if ! htyInPath 'mc'; then
     else
       ln -sfr ${HPCTOYS_ROOT}/opt/mc/bin/mc ${HPCTOYS_ROOT}/bin/mc
     fi
-  else 
-    echo "unable to download ${DURL}, exiting !"
-    ERRLIST+=" Midnight-Commander"
   fi
   cd ${CURRDIR}
 fi
@@ -436,7 +337,7 @@ fi
 irclone() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
   echoerr "\n * Installing 'rclone' ... *\n"
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://downloads.rclone.org/rclone-current-linux-amd64.zip"
   echo -e "\n *** Installing ${DURL} ...\n"
   curl -OkL ${DURL}
@@ -460,7 +361,7 @@ fi
 iminiconda() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
   echoerr "\n * Installing 'miniconda' ... *\n"
-  cd ${MYTMP}
+  cd ${INTMP}
   DURL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
   echo -e "\n *** Installing ${DURL} ...\n"
   curl -OkL ${DURL}
@@ -481,7 +382,7 @@ if [[ $(htyIntVersion ${SSLVER}) -lt $(htyIntVersion "1.1.1") ]]; then
   if ! [[ -f "${HPCTOYS_ROOT}/opt/openssl/bin/openssl" ]]; then
     VER="1_1_1p"
     echoerr "\n * Installing 'openssl' ${VER} ... *\n"
-    cd ${MYTMP}
+    cd ${INTMP}
     DURL="https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_${VER}.tar.gz"
     echo -e "\n *** Installing ${DURL} ...\n"
     curl -OkL ${DURL}
@@ -517,7 +418,7 @@ fi
 ilpython() {
 VER="3.10.5"
 VER_B="" # beta ver such as b1, b2 or b3
-cd ${MYTMP}
+cd ${INTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   echoerr "\n * Installing 'lpython' ${VER}${VER_B} ... *\n"
   #htyLoadLmod gcc
@@ -699,6 +600,20 @@ iquestions_user() {
 
 # QST should not be more than 50 chars wide
 
+QST=$(cat << EOF
+*** Welcome to the HPC Toys installer. ***
+
+For a good configuration you need to answer a
+few questions. Please hit cancel if you would 
+like to skip this step for now. 
+
+Hit OK to continue (default)
+EOF
+)
+
+dialog --pause "${QST}" 15 50 30
+[[ $? -ne 0 ]] && return 1
+
 # verify Github Metadata
 QST=$(cat << EOF
 No public SSH keys were found in folder ~/.ssh
@@ -771,6 +686,7 @@ enter your first and last name or confirm the
 default setting. 
 EOF
 )
+RES=""
 htyDialogInputbox "${QST}" "$(git config --global user.name)"
 git config --global user.name "${RES}"
 
@@ -784,6 +700,7 @@ This will be your work email address in most
 cases. 
 EOF
 )
+RES=""
 htyDialogInputbox "${QST}" "$(git config --global user.email)"
 git config --global user.email "${RES}"
 
@@ -876,11 +793,12 @@ read -n 1 -r -s -p $'\n Press enter to continue...\n'
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
+  ipackages
   iother
+  idialog
   ijq
   iyq
   ikeychain
-  idialog
   idefaults_group
   idefaults_user
   if [[ -z ${ERRLIST} ]]; then
@@ -904,13 +822,13 @@ fi
 
 # cleanup
 if [[ -z ${ERRLIST} ]]; then
-  rm -rf ${MYTMP}
+  rm -rf ${INTMP}
   echoerr " HPC Toys installed ! "
   echoerr " Please logout/login or run this command:"
   echoerr " source ${PROF}"
 else
   echoerr "Errors in these installations: ${ERRLIST}"
-  echoerr "Check ${MYTMP} for troubleshooting"
+  echoerr "Check ${INTMP} for troubleshooting"
 fi
 cd ${CURRDIR}
 
