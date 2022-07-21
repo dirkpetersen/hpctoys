@@ -10,7 +10,7 @@
 },
 {
   "title": "Submit Cluster Job ",
-  "key": "S",
+  "key": "J",
   "text": ["Submit simple R job ",
            "with multiple data ",
            "files using Slurm "],
@@ -37,10 +37,10 @@
 },
 {
   "title": "Reconfigure HPC Toys",
-  "key": "L",
-  "text": ["Submit simple R jobs ",
-           "using multiple data ",
-           "to the cluster "],
+  "key": "S",
+  "text": ["Re-run setup for install ",
+           "and configuration. ",
+           "Answer all questions "],
   "cmd": "${HPCTOYS_ROOT}/install.sh",
   "url": "https://google.com"
 },
