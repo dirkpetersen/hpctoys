@@ -1,5 +1,7 @@
 #! /bin/bash
 
+set -x
+
 CURRDIR=$(pwd)
 if [[ -f ${BASH_SOURCE} ]]; then
   cd $(dirname "$(realpath "${BASH_SOURCE}")")
@@ -21,7 +23,7 @@ export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 RUNCPUS=4
 [[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=$((${SLURM_CPUS_ON_NODE}*2))
 
-shift
+[[ -n $1 ]] && shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
   #echo "OPTION: -${OPTION} ARG: ${OPTARG}"
   eval OPT_${OPTION}=\$OPTARG
@@ -587,6 +589,10 @@ fi
 if [[ -z $(git config --global push.default) ]]; then
   git config --global push.default simple
 fi
+DEFBRANCH=$(git config --global init.defaultBranch)
+if [[ -z "${DEFBRANCH}" ]] || [[ "${DEFBRANCH}" == "master" ]]; then
+  git config --global init.defaultBranch main
+fi
 
 }
 
@@ -604,8 +610,8 @@ QST=$(cat << EOF
 *** Welcome to the HPC Toys installer. ***
 
 For a good configuration you need to answer a
-few questions. Please hit cancel if you would 
-like to skip this step for now. 
+few questions. Please hit cancel or ESC if you
+would like to skip this step for now. 
 
 Hit OK to continue (default)
 EOF
@@ -738,7 +744,6 @@ GHORG=$(echo ${GHJSON} | jq -r '.company')
 GHLOC=$(echo ${GHJSON} | jq -r '.location')
 GHUPD=$(echo ${GHJSON} | jq -r '.updated_at')
 
-
 # verify Github Metadata 
 QST=$(cat << EOF
 ${GHLOG}, you are the ${GHID}th Github.com 
@@ -769,6 +774,7 @@ you will just need to confirm if one
 is already pre-selected for you.
 EOF
 )
+SELKEYS="$(htyReadConfigOrDefault load_sshkeys)"
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
   htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}"
 elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
@@ -784,7 +790,10 @@ echo "https://github.com/settings/ssh/new (Ctrl+Click) "
 echo "in the 'Key' field and enter a description for "
 echo "this key in the 'Title' field. " 
 echo "------------SNIP-------------------------"
-cat ~/.ssh/${RES}
+for R in ${RES}; do
+  cat ~/.ssh/${R}
+  echo "----------"
+done
 echo "------------SNIP-------------------------"
 read -n 1 -r -s -p $'\n Press enter to continue...\n'
 

@@ -11,18 +11,18 @@
 {
   "title": "Submit Cluster Job ",
   "key": "J",
-  "text": ["Submit simple R job ",
-           "with multiple data ",
-           "files using Slurm "],
-  "cmd": "hty submit",
+  "text": ["Submit batch job array ",
+           "to HPC after selecting ",
+           "several data files. "],
+  "cmd": "hty arrayjob",
   "url": "https://google.com"
 },
 {
   "title": "Interactive Job ",
   "key": "I",
-  "text": ["Submit interactive ",
-           "Slurm job using the ",
-           "grabnode tool "],
+  "text": ["Submit interactive HPC",
+           "job by selecting CPUs, ",
+           "memory, etc "],
   "cmd": "grabnode",
   "url": "https://google.com"
 },
@@ -31,8 +31,17 @@
   "key": "T",
   "text": ["Create a long running ",
            "Terminal Session you ",
-           "leave and join later"],
+           "leave and join later."],
   "cmd": "hty longterm",
+  "url": "https://google.com"
+},
+{
+  "title": "Virtual Server",
+  "key": "V",
+  "text": ["Create an Openstack ",
+           "virtual Server and ",
+           "pick image, CPU & RAM"],
+  "cmd": "osc-server",
   "url": "https://google.com"
 },
 {
@@ -40,8 +49,8 @@
   "key": "S",
   "text": ["Re-run setup for install ",
            "and configuration. ",
-           "Answer all questions "],
-  "cmd": "${HPCTOYS_ROOT}/install.sh",
+           "Answer all questions"],
+  "cmd": "${HPCTOYS_ROOT}/install.sh iquestions_user",
   "url": "https://google.com"
 },
 {

@@ -1,14 +1,22 @@
 #! /bin/bash
 
+set -e 
+
 # hty - HPCToys commands 
+#
+# notes: 
+# Expand with https://starship.rs/
 #
 SCR=${0##*/}
 SUBCMD=$1
 ME=$(whoami)
+STARTDIR=$(pwd)
+STARTBASE=$(basename ${STARTDIR})
 
-! htyRootCheck && exit
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh
+
+htyRootCheck || exit
 
 #initLpython
 
@@ -22,7 +30,7 @@ shift $((OPTIND - 1))
 
 # various functions are executed as subcommands 
 
-longterm(){
+longterm(){  
   SN=$(tmux list-sessions -F "#S" 2>/dev/null)
   if [[ -z ${SN} ]]; then
 QST=$(cat << EOF
@@ -37,11 +45,11 @@ EOF
 )
     dialog --msgbox  "${QST}" 0 0  
     clear
-    htyEcho "Run: tmux new-session -s \"${ME}1\"" 3 
+    htyEcho "Run: tmux new-session -s \"${ME}1\"" ${TWW}
     tmux new-session -s "${ME}1"
     return 0
   fi
-  SN+=" new-session"
+  SN+=" -new-session- -exit-"
 QST=$(cat << EOF
 Please select the terminal session you would
 like to re-connect to. You can also create a 
@@ -55,7 +63,7 @@ EOF
   if ! htyDialogMenu "${QST}" "${SN}"; then 
     return 1
   fi
-  if [[ "${RES}" == "new-session" ]]; then
+  if [[ "${RES}" == "-new-session-" ]]; then
 QST=$(cat << EOF
 Please confirm the session name or enter a new
 session name, for example a project name you 
@@ -67,16 +75,239 @@ EOF
     SID=$(wc -w <<<${SN})
     ! htyDialogInputbox "${QST}" "${ME}${SID}" && return 1
     S=${RES// /_}   
-    htyEcho "Run: tmux new-session -s \"${S}\"" 3
+    htyEcho "Run: tmux new-session -s \"${S}\"" ${TWW}
     tmux new-session -s "$S"
+  elif [[ "${RES}" == "-exit-" ]]; then
+    return 0 
   elif [[ -n ${RES} ]]; then
-    htyEcho "Run: tmux attach -t \"${RES}\"" 3
+    htyEcho "Run: tmux attach -t \"${RES}\"" ${TWW}
     tmux attach -t "${RES}"
   fi
 }
 
+arrayjob() {
+  #MSG="${FUNCNAME[0]} <binary> <script>"
+  #[[ -z $1 ]] && echo ${MSG} && return 1
+  MYBIN=$1;  MYSHEBANG=""; MYJOBARR=""
+  RES=""
+  [[ $1 == "R" ]] && MYBIN="Rscript"
+  [[ $1 == "python" ]] && MYBIN="python3"
+QST=$(cat << EOF
+We will now create a Slurm job array and submit
+it to the cluster. The idea of an array job is
+that you have one script that is executed with 
+multiple data files. Each combination of script
+and data file is an array job and the collection
+of all data files and the script is called a job
+array.
+As part of this process we will use common best 
+practices, manage our code with Git, and ensure 
+that code and data are kept in separate folders.
+Please enter a short but meaningful name or id 
+for your job array. You will use it to track 
+progress in your job arrays
+EOF
+)   
+  htyDialogInputbox "${QST}" \
+      "job-arr1-${ME}" "Job Array Name" \
+      || return 1
+  MYJOBARR="${RES}"
+  
+QST=$(cat << EOF
+Now select a project folder name that has a 
+Python, R, or Shell (other) script but NO data.
+If you don't have a project folder with a script 
+yet, please enter a new folder name without path 
+below and in the next step you use the folder 
+browser to select the path where this new folder
+will be created. 
+
+If your project folder is not inside a Git repos
+yet, this process will initialize a new Git repos
+for you. Note, that all dots, underscores and 
+spaces in your folder name will be replaced with h
+yphens to ensure this folder name can be in a URL 
+on Github later.
+
+Enter a project folder name or leave blank to
+select an existing folder with the folder 
+browser.
+EOF
+)
+  RES=""
+  htyDialogInputbox "${QST}" "" \
+      "${MYJOBARR} Folder" || return 1
+  REPOSFLD=""
+  NEWFLD=""
+
+  if [[ -n ${RES} ]]; then
+    NEWFLD={$RES}
+    QST=$(cat << EOF
+Please select a folder in which we create your
+new project sub folder. 
+You can either select a previously used folder
+or you start from 'root' or 'home' and browse 
+through the folders with the arrow keys and 
+confirm your selection with 'Enter'.
+EOF
+)     
+  else
+QST=$(cat << EOF
+Please select the existing folder that contains 
+your code files. This folder cannot exceed 10MB
+in size. 
+EOF
+)
+  fi
+
+  htyFolderSel "${QST}" || return 1
+  REPOSFLD=${RES}
+
+  if [[ -z ${NEWFLD} ]]; then
+    MAXSIZEFLD=10240 # 10MB max size
+    SIZEFLD=(du -hs "${REPOSFLD}")
+    if [[ ${MAXSIZEFLD} -gt ${SIZEFLD} ]]; then
+      QST=$(cat << EOF
+The folder you chose is larger than 10 MB which
+is not supported by HPC Toys. Rememder that code
+and data must be stored in different locations.
+Please enter new new project folder name that 
+will be created inside this folder. 
+EOF
+)     htyDialogInputbox "${QST}" "project1-${ME}" \
+      "${MYJOBARR} Folder" || return 1 
+      NEWFLD={$RES}
+    fi
+  fi
+  if [[ -n ${NEWFLD} ]]; then
+    NEWFLD=${NEWFLD// /-}
+    NEWFLD=${NEWFLD//_/-}
+    NEWFLD=${NEWFLD//./-}
+    NEWFLD=$(htyRemoveTrailingSlashes "${NEWFLD}")
+    REPOSFLD=${REPOSFLD}/${NEWFLD}
+    mkdir -p $REPOSFLD
+  fi
+
+  # REPOSFLD is now set, initialize git repos 
+  
+  htyGitIsInRepos "${REPOSFLD}" \
+           || htyGitInitRepos "${REPOSFLD}" 
+
+  QST=$(cat << EOF
+Now select the code file you would like to use
+for your array job. This should be a file ending
+with .py or .R or .sh. If you are not seeing 
+a suitable file please "* Create New file *"
+EOF
+)
+
+  htyFileSel "${QST}" "${REPOSFLD}"  "*" "0" \
+             "* Create New file *" || return 1
+  MYFILE="${RES}"
+  if [[ "${MYFILE}" == "* Create New file *" ]]; then
+    QST=$(cat << EOF
+Please enter a file name that ends with .py or  
+.R. If you do not enter a file extension I will
+create Slurm submission script with an extension
+.sub.
+EOF
+)    
+    htyDialogInputbox "${QST}" "" \
+      "Create New File" || return 1
+    MYFILE="${RES}"
+    MYFILE=$(htyRemoveTrailingSlashes "${MYFILE}")
+    MYFILE=${MYFILE// /-}
+  else
+    MYFILE=$(htyRemoveTrailingSlashes "${MYFILE}")
+  fi
+  
+  ## checking if R or Python or Shell 
+
+  MYEXT=${MYFILE##*.}
+  if [[ "${MYEXT}" == "${MYFILE}" ]]; then
+    MYEXT="sub"
+    MYBIN="bash"
+  fi
+  if [[ "${MYEXT,,}" == "r" ]]; then 
+    # converting to lowercase 
+    MYEXT='R'
+    MYBIN="Rscript"
+  elif [[ "${MYEXT,,}" == "py" ]]; then
+    MYEXT='py'    
+    MYBIN='python3'
+  fi
+
+  touch "${REPOSFLD}/${MYFILE}" 
+
+  #### Select data files, one and more folders 
+
+  DQST=$(cat << EOF
+Now we need to select the folders that contain 
+the data files you would like to use. 
+You can select data files from multiple folders. 
+After you have selected your folder you can 
+check multiple files for processing.
+EOF
+)
+
+  FQST=$(cat << EOF
+Now we need to select the data files you would
+like to run with your script. You can check files
+or simply choose "* all files *" to include all
+files in that folder.
+EOF
+)
+
+  FLDEND=""
+  MYDATA=()
+  while [[ -z "${FLDEND}" ]]; do 
+    htyFolderSel "${DQST}" || FLDEND='yes'
+    FLD="${RES}"
+    if [[ -z "${FLDEND}" ]]; then
+      htyFileSelMulti "${FQST}" "${FLD}" "*" "0" \
+        "* all files *" || FLDEND='yes'
+      if [[ -z "${FLDEND}" ]]; then
+        for F in ${RES}; do 
+          MYDATA+=("${FLD}/${F}")
+        done
+      fi 
+    fi
+    dialog --yesno "Select files from other data folders?" 0 0 \
+                   || FLDEND='yes'
+  done 
+
+  htyEcho "${MYDATA[@]}" 0
+ 
+
+
+  MYSLURM="" # a block with SHEBANG, SBATCH DIRECTIVES
+  #check if the script starts with the right shebang
+  if ! head -n 1 "${REPOSFLD}/${MYFILE}" | \
+                grep -q '^#!.*'"${MYBIN}"'$'; then
+    MYSLURM+="#! /usr/bin/env ${MYBIN}\n"
+  fi
+
+
+  #check if the script starts with the right shebang
+  #if ! head -n 1 "$2" | grep -q '^#!.*'"${MYBIN}"'$'; then
+  #  SHEBANG="#! /usr/bin/env ${MYBIN}"
+  #fi
+ 
+}
+
+spinner() {
+  htySpinner "$!"
+}
+
+
+quiet() {
+  echo "1" > ~/.config/hpctoys/quiet
+  htyEcho "Disabled message at login time."
+}
+
 help(){
-  echo " ${SCR} termerver-name>"
+  echo " ${SCR} longterm"
+  echo " ${SCR} arrayjob"
   echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
   echo -e "\nfor example:"
   echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
@@ -92,7 +323,7 @@ args() {
   echo ""
 }
 
-if [[ ${SUBCMD} =~ ^(longterm|help|args)$ ]]; then
+if [[ ${SUBCMD} =~ ^(longterm|arrayjob|spiner|quiet|help|args)$ ]]; then
   ${SUBCMD} "$@"  
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2

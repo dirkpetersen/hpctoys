@@ -1,8 +1,16 @@
-# Global settings for all users in your group.
-# After   
-# git clone https://github.com/dirkpetersen/hpctoys.git
-# cd hpctoys
-# install.sh
+# Global settings and functions for HPC toys 
+# Install HPC Toys: 
+#   git clone https://github.com/dirkpetersen/hpctoys.git
+#   cd hpctoys
+#   ./install.sh
+#
+# Popular Bashisms for substring:
+# NEW=${OLD/search/replacefirst} NEW=${OLD//search/replaceall}
+#  * String removal * 
+#  PLAINFILE="${URL##*/}" search all / from begin of file
+#  TARNOEXT="${TARFILE%%.*}" search all . from end of file 
+#  ONLYEXT="${TARFILE#*.}" search first . from begin of file 
+# Chop off 1 from: BEGIN=${STR:1}  END=${STR::-1}
 
 GID_SUPERUSERS=111111
 UID_APPMGR=222222
@@ -40,12 +48,137 @@ htyEcho() {
   else
     echo -e "$1" 1>&2
   fi
-  if test -n $2; then 
+  if [[ $2 == ?(-)+([0-9]) ]] ; then
     if [[ $2 -gt 0 ]]; then
       sleep $2
+    elif [[ $2 -eq 0 ]]; then
+      read -n 1 -r -s -p $' (Press any key to continue)\n' 
     fi
+  elif [[ -n $2 ]]; then
+    echo " 2nd argument (sleep-time) must be numeric"
   fi
 }
+
+htySpinner() {
+  if [[ $1 == ?(-)+([0-9]) ]] ; then
+    local -r pid="${1}"
+  else
+    $@ &
+    local -r pid="$!"
+  fi
+  local -r delay='0.5'
+  local spinstr='\|/-'
+  local temp
+  while ps a | awk '{print $1}' | grep -q "${pid}"; do
+    temp="${spinstr#?}"
+    printf " [%c]  " "${spinstr}"
+    spinstr=${temp}${spinstr%"${temp}"}
+    sleep "${delay}"
+    printf "\b\b\b\b\b\b"
+  done
+  printf "    \b\b\b\b"
+}
+
+htyGitIsInRepos() {
+  MSG="${FUNCNAME[0]} <file-or-folder>"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local CURRDIR=$(pwd); local GDIR="${1%+(/)}"
+
+  ! [[ -d "${GDIR}" ]] && GDIR=$(dirname ${GDIR})
+  !  [[ -d "${GDIR}" ]] && return 1
+
+  if [[ "${GDIR}" != "${CURRDIR}" ]]; then
+    cd "${GDIR}"
+    if [[ "${GDIR}" != "$(pwd)" ]]; then
+      echoerr " Could not switch to dir ${GDIR}!"
+      cd "${CURRDIR}"
+      return 1
+    fi
+  fi
+
+  if git rev-parse 2>/dev/null; then
+    cd "${CURRDIR}"
+    return 0
+  fi
+  cd "${CURRDIR}"
+  return 1
+}
+
+htyGitInitRepos() {
+  MSG="${FUNCNAME[0]} <folder>"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local CURRDIR=$(pwd); local GDIR=${1%+(/)}
+
+  if [[ "${GDIR}" != "${CURRDIR}" ]]; then
+    cd "${GDIR}"
+    if [[ "${GDIR}" != "$(pwd)" ]]; then
+      echoerr " Could not switch to dir ${GDIR}!"
+      cd "${CURRDIR}"
+      return 1
+    fi
+  fi
+
+  if [[ -z $(git config --global user.name) ]]; then
+    echoerr " Global git user not set." 
+    echoerr " Re-run HPC Toys installer."
+    cd "${CURRDIR}"
+    return 1      
+  fi
+  
+  if ! [[ -f README.md ]]; then
+    echo "# Repository $(basename ${GDIR})" \
+        > README.md
+  fi
+  if ! [[ -f .gitignore ]]; then
+    echo "*__pycache__*" > .gitignore
+  fi
+ 
+  git init
+  git symbolic-ref HEAD refs/heads/main
+  git add -A .
+  git commit -a -m "Initial commit"  
+
+  cd "${CURRDIR}"
+
+}
+
+htyGithubInitRepos() {
+  MSG="${FUNCNAME[0]} <folder>"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local CURRDIR=$(pwd); local GDIR=${1%+(/)}
+
+  if [[ "${GDIR}" != "${CURRDIR}" ]]; then
+    cd "${GDIR}"
+    if [[ "${GDIR}" != "$(pwd)" ]]; then
+      echoerr " Could not switch to dir ${GDIR}!"
+      cd "${CURRDIR}"
+      return 1
+    fi
+  fi
+
+  if [[ -z $(git config --global user.name) ]]; then
+    echoerr " Global git user not set."
+    echoerr " Re-run HPC Toys installer."
+    cd "${CURRDIR}"
+    return 1
+  fi
+
+  if ! git rev-parse 2>/dev/null; then
+     cd "${CURRDIR}"
+     echoerr " ${GDIR} is not a git repository"
+     return 1
+  fi
+
+  MYREPOS=$(basename "${GDIR}")
+  git remote add origin git@github.com:${MYREPOS}.git
+  git remote -v
+  git push --set-upstream origin main
+
+  cd "${CURRDIR}"
+
+}
+
+
 htyAddLineToFile() {  
   # htyAddLineToFile <line> <filename>
   MSG="${FUNCNAME[0]} <line-to-be-added> <file-that-exists>"
@@ -77,18 +210,182 @@ htyCommentAndReplaceLineInFile() {
   fi
 }
 
-htyFilesPlain() {
-  MSG="${FUNCNAME[0]} <folder> <file-or-wildcard>"
-  [[ -z $1 ]] && echo ${MSG} && return 1
-  if [[ -z $2 ]]; then
-    ls -1 $1
-  else
-    CD=$(pwd)
-    cd $1
-    ls -1 $2
-    cd ${CD}
-  fi
+htyRemoveTrailingSlashes() {
+  local MYPATH=$1
+  MYPATH=${MYPATH%+(/)} #remove slash from end 
+  MYPATH=${MYPATH#+(/)} #remove slash from beginning
+  MYPATH=${MYPATH%+(/)} #remove slash from end
+  MYPATH=${MYPATH#+(/)} #remove slash from beginning
+  echo ${MYPATH}
 }
+
+htyFilesPlain() {
+  MSG="${FUNCNAME[0]} <folder> [file-or-wildcard] [max-entries]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local MYPAT="*"
+  local MYMAX="tee"
+  [[ -n $2 ]] && MYPAT="$2"
+  [[ $3 -gt 0 ]] && MYMAX="head -n $3"
+  find "$1" -maxdepth 1 -type f,l \
+            -iname "${MYPAT}" -printf "%f\n" \
+            | grep -v '^\.' \
+            | sort --ignore-case | ${MYMAX}
+}
+
+htyDialogError() {
+  MSG="${FUNCNAME[0]} \"<return-code>\" \"<error-message>\""
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  if [[ $1 -eq 255 ]]; then
+    if [[ -z ${2} ]]; then
+      echoerr "Canceled (Esc)!"
+    elif [[ "$2" =~ "Can't make sub-window" ]]; then 
+      echoerr "Your terminal is too small" 
+      echoerr "Please increase window size. Error: $2"
+    else 
+      echoerr "Other Error (255): $2"
+    fi
+  elif [[ $1 -gt 1 ]]; then
+    echoerr "Error $1:"
+    echoerr "$2"
+  elif [[ $1 -eq 1 ]]; then
+    echoerr "Canceled!"
+    echo "$2"
+  fi
+  RES=""
+  #htyEcho "$1 $2" 0
+}
+
+htyFileSelMulti() {
+  MSG="${FUNCNAME[0]} <message> <folder> [file-or-wildcard] [max-entries] [default-file]"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  DIALOGTYPEX="--checklist"
+  htyFileSel "$@"
+}
+
+
+htyFileSel() {
+  # will display unicode strangely, e.g Umlaut-ä-ü-ö-ß-Code.py
+  MSG="${FUNCNAME[0]} <message> <folder> [file-or-wildcard] [max-entries] [default-entry]"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  local RET=""; local DEF="" ; local MAXENT=0
+  local OPT=(); local MYFILES; local DIALOGRC
+  export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  # make array from last 25 lines in reverse order
+  [[ -n $4 ]] && MAXENT=$4
+  readarray -n ${MAXENT} -t MYFILES < <(htyFilesPlain "$2" "$3")
+  OPT=() # options array
+  RES=""
+  i=0
+  DEF=$5
+  ONOFF="off"
+  if [[ -z ${DIALOGTYPEX} ]]; then
+    DIALOGTYPEX="--menu"
+    ONOFF=""
+  fi
+  if [[ -n "${DEF}" ]]; then
+    HASDEF=""
+    for FIL in "${MYFILES[@]}"; do
+      if [[ "${FIL}" == "${DEF}" ]]; then
+        HASDEF="${FIL}"
+      fi
+    done
+    # if we passed in a default that is not in 
+    # the list of files we just add this entry
+    # to the top.
+    # This can be used to create a new file or 
+    # it can simply be a command such as 
+    # create-new-file.
+    if [[ -z "${HASDEF}" ]]; then
+       OPT+=("${DEF}" "" ${ONOFF})
+    fi
+  fi
+  for FIL in "${MYFILES[@]}"; do
+    [[ -z ${DEF} ]] && DEF=${FIL}
+    OPT+=("${FIL}" "" ${ONOFF})
+  done
+  while [[ "$RES" == "" ]]; do
+    RES=$(dialog --backtitle "HPC Toys" \
+                 --title "HPC Toys" \
+                 --default-item "${DEF}" \
+                 ${DIALOGTYPEX} "$1" 0 0 0 "${OPT[@]}" \
+                 3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+                 )
+    RET=$?
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      unset DIALOGTYPEX
+      return ${RET}
+    fi
+  done
+  #htyEcho "X${RES}X" 0
+  unset DIALOGTYPEX
+}
+
+htyFolderSel() {
+  MSG="${FUNCNAME[0]} <message> [default-folder]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local MYCFG=~/.config/hpctoys/foldersel
+  local MYAWCFG=~/.config/hpctoys/foldersel_always
+  local RET=""; local DEF=""
+  local OPT=(); local MYFLDS; local DIALOGRC 
+  export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  # make array from last 25 lines in reverse order
+  readarray -n 25 -t MYFLDS < <(tac ${MYCFG})
+  MYAW=$(htyReadConfigOrDefault "${MYAWCFG}" '-')
+  RES='loop'
+  while [[ "$RES" == "loop" ]]; do
+    if [[ -n $2 ]]; then
+      OPT+=("$2" "")
+      [[ -z ${DEF} ]] && DEF="$2"
+    fi
+    OPT+=("/" "(root)")
+    OPT+=("~" "(home)")
+    M="always use browser"
+    if [[ ${MYAW} == "-" ]]; then
+      M="browser for / and ~"
+    fi 
+    OPT+=("  select always (${MYAW})" "$M")
+    for FLD in "${MYFLDS[@]}"; do 
+      [[ -z ${DEF} ]] && DEF=${FLD}
+      OPT+=("${FLD}" "")    
+    done
+    RES=$(dialog --backtitle "HPC Toys" \
+	       --title "Select Folder ($M)" \
+               --default-item "${DEF}" \
+	       --menu "$1" 0 0 0 "${OPT[@]}" \
+	       3>&2 2>&1 1>&3-  # 2>&1 1>/dev/tty 
+             )
+    RET=$?
+    OPT=()
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
+    fi
+    if [[ ${RES} == "  select always"* ]]; then
+      [[ ${MYAW} == "X" ]] && MYAW="-" || MYAW="X"
+      printf "${MYAW}" > ${MYAWCFG}
+      DEF="  select always (${MYAW})"
+      RES="loop"
+    fi
+  done
+  if [[ ${#RES} -eq 1 ]] || [[ ${MYAW} == "X" ]]; then
+    # if single char (/ or ~) or globally enabled
+    eval RES="${RES}" # expand ~
+    RES=$(foldersel "${RES}")
+    H=$(echo ~) # get true homedir
+    if [[ $RES == "$H"* ]]; then
+      RES=${RES/$H/'~'}
+    fi
+  fi
+  RESI=${RES//\//\\\/} # escape all slashes for sed
+  sed -i '/^'"${RESI}"'$/d' ~/.config/hpctoys/foldersel
+  if [[ ${#RES} -gt 1 ]]; then 
+    echo "${RES}" >> ~/.config/hpctoys/foldersel
+  fi
+  printf "${RES}"
+return 0
+}
+
 
 htyIsItemInList() {
   MSG="${FUNCNAME[0]} <item> <list of items>"
@@ -102,21 +399,29 @@ htyIsItemInList() {
 htyDialogInputbox() {
   # wrapper for unix dialog --inputbox
   #read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
-  MSG="${FUNCNAME[0]} <message> <default-value>"
-  [[ -z $2 ]] && echo ${MSG} && return 1
+  MSG="${FUNCNAME[0]} <message> [default-value] [box-title]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local RET; local MYTIT
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  [[ -z $3 ]] && MYTIT="HPC Toys" || MYTIT=$3
   RES="" 
-  while [[ "$RES" == "" ]]; do 
-    RES=$(dialog --inputbox "$1" 0 0 "$2" 2>&1 1>/dev/tty)
+  while [[ "$RES" == "" ]]; do
+    RES=$(dialog --backtitle "HPC Toys" \
+                 --title "${MYTIT}" \
+                 --inputbox "$1" 0 0 "$2" \
+                 3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+                 )
     RET=$?
     #echo $RET:$RES && sleep 3
-    if [[ $RET -ne 0 ]]; then
-      clear
-      RES=""
-      echoerr "\n  htyDialogInputbox canceled  ...\n"
-      return 1
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
+    fi 
+    if [[ -z "$2" ]] && [[ -z "${RES}" ]]; then 
+      # RES = "" is allowed only if default was ""
+      return 0
     fi
-  done
-  clear
+  done  
 }
 
 htyDialogChecklist() {
@@ -124,26 +429,31 @@ htyDialogChecklist() {
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
   MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
   [[ -z $2 ]] && echo ${MSG} && return 1
-  OPT=""
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc  
+  OPT=()
   RES=""
   i=0
+  DEF=""
   for E in $2; do 
     let i++
     if [[ " $3 " =~ .*\ ${E}\ .* ]]; then
-      OPT+="$E $i on "
-    else 
-      OPT+="$E $i off "
-    fi  
+      OPT+=("${E}" "" on) # or "$i" "on"
+      [[ -z ${DEF} ]] && DEF=$E
+    else
+      OPT+=("${E}" "" off) 
+    fi
   done
   while [[ "$RES" == "" ]]; do
-    RES=$(dialog --checklist "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty) 
+    RES=$(dialog --backtitle "HPC Toys" \
+                 --title "HPC Toys" \
+                 --default-item "${DEF}" \
+                 --checklist "$1" 0 0 0 "${OPT[@]}" \
+                 3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+                 ) 
     RET=$?
-    #echo $RET:$RES && sleep 3
-    if [[ $RET -ne 0 ]]; then
-      clear
-      RES=""
-      echoerr "\n  htyDialogChecklist canceled  ...\n"
-      return 1
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
     fi
   done
   clear
@@ -152,24 +462,33 @@ htyDialogChecklist() {
 htyDialogMenu() {
   # wrapper for unix dialog --menu
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
-  MSG="${FUNCNAME[0]} <message> <list-of-options>"
+  MSG="${FUNCNAME[0]} <message> <list-of-options> <default-option>"
   [[ -z $2 ]] && echo ${MSG} && return 1
-  OPT=""
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  OPT=() # options array
   RES=""
   i=0
+  DEF=$3
   for E in $2; do
     let i++
-    OPT+="$E $i "
+    if [[ $E == *'*' ]]; then # slurm defaults show as *
+      DEF=${E:0:-1}
+      E=${DEF}
+    fi
+    OPT+=("${E}" "") # or "$i"
+    [[ -z ${DEF} ]] && DEF="$E"
   done
   while [[ "$RES" == "" ]]; do
-    RES=$(dialog --menu "$1" 0 0 0 ${OPT} 2>&1 1>/dev/tty)
+    RES=$(dialog --backtitle "HPC Toys" \
+                 --title "HPC Toys" \
+                 --default-item "${DEF}" \
+                 --menu "$1" 0 0 0 "${OPT[@]}" \
+                 3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+                 )
     RET=$?
-    #echo $RET:$RES && sleep 3
-    if [[ $RET -ne 0 ]]; then
-      clear
-      RES=""
-      echoerr "\n  htyDialogMenu canceled ...\n"
-      return 1
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
     fi
   done
   clear
@@ -449,94 +768,126 @@ initLpython() {
 
 # needed if used inside functions
 # list all functions with "declare -F"
-export -f echoerr
-export -f htyInGroup
-export -f htyInPath
-export -f htyMkdir 
-export -f htyEcho 
-export -f htyAddLineToFile
-export -f htyAddLineBelowLineToFile
-export -f htyReplaceLineInFile
-export -f htyCommentAndReplaceLineInFile
-export -f htyFilesPlain
-export -f htyIsItemInList
-export -f htyDialogInputbox
-export -f htyDialogChecklist
-export -f htyDialogMenu
-export -f htyReadConfigOrDefault
-export -f htyAppendPath
-export -f htyPrependPath
-export -f htyRootCheck
-export -f htyInstallSource
-export -f htyDownloadUntarCd
-export -f htyConfigureMakeInstall
-export -f htyIntVersion
-export -f htyLoadLmod
+if [[ -n "${BASH}" ]]; then
+  export -f echoerr
+  export -f htyInGroup
+  export -f htyInPath
+  export -f htyMkdir 
+  export -f htyEcho
+  export -f htySpinner
+  export -f htyGitIsInRepos
+  export -f htyGitInitRepos
+  export -f htyGithubInitRepos
+  export -f htyAddLineToFile
+  export -f htyAddLineBelowLineToFile
+  export -f htyReplaceLineInFile
+  export -f htyCommentAndReplaceLineInFile
+  export -f htyRemoveTrailingSlashes
+  export -f htyFilesPlain
+  export -f htyFileSel
+  export -f htyFolderSel
+  export -f htyIsItemInList
+  export -f htyDialogInputbox
+  export -f htyDialogChecklist
+  export -f htyDialogMenu
+  export -f htyReadConfigOrDefault
+  export -f htyAppendPath
+  export -f htyPrependPath
+  export -f htyRootCheck
+  export -f htyInstallSource
+  export -f htyDownloadUntarCd
+  export -f htyConfigureMakeInstall
+  export -f htyIntVersion
+  export -f htyLoadLmod
+fi
 
+########## Setting HPC Toys Environment ################################
 # GR = root of github repos 
 #GR=$(git rev-parse --show-toplevel)
-if [[ -n ${BASH_SOURCE} ]]; then 
-  GR=$(dirname "$(dirname "$(dirname "$(realpath "${BASH_SOURCE}")")")")
-else
-  echo 'Your shell does not support ${BASH_SOURCE}. Please use "bash" to setup hpctoys.'  
-  exit
+
+MYBASHVER=${BASH_VERSION:0:3}
+if [[ -z ${BASH} ]]; then 
+  echoerr " HPC Toys only works with Bash, sorry !"  
+  return 1  
+elif [[ "${MYBASHVER/./}" -lt 42 ]]; then
+  echoerr " HPC Toys only works with Bash >= 4.2, sorry !"
+  return 1
 fi
+
+GR=$(dirname "$(dirname "$(dirname "$(realpath "${BASH_SOURCE}")")")")
+export HPCTOYS_ROOT="${GR}"
 if [[ -z ${TMPDIR} ]]; then
   export TMPDIR="/tmp"
 fi
-export HPCTOYS_ROOT="${GR}"
 htyMkdir ~/.config/hpctoys
 htyMkdir "${HPCTOYS_ROOT}/etc/hpctoys"
 WHOAMI=$(whoami)
 
-if [[ "$EUID" -ne 0 ]]; then
-  # Security: everyone except app managers should have a umask of 0027 or 0007 
-  if [[ "$EUID" -ne ${UID_APPMGR} ]]; then 
-    umask 0007
-  fi
-  # Generic Environment variables and PATHs
-  if htyInGroup ${GID_SUPERUSERS}; then 
-    htyAppendPath "${GR}/sbin"
-  fi
-  htyPrependPath "${GR}/bin" "${GR}/opt/python/bin"
-  htyAppendPath "~/.local/bin"
-  if [[ -d ${GR}/opt/miniconda ]]; then
-    htyAppendPath ${GR}/opt/miniconda/bin
-  fi
-  
-  # replace dark blue color in terminal and VI
-  COL=$(htyReadConfigOrDefault "dircolors")
-  if [[ -z ${COL} ]]; then
-    COL=$(dircolors)
-    eval ${COL/di=01;34/di=01;36}
-  else
-    eval ${COL}
-  fi
-  
-  # *** Spack settings ***
-  if [[ -z ${SPACK_ROOT} ]]; then
-    export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
-  fi
-  if [[ -n ${SPACK_ROOT} ]]; then 
-    initSpack
-  fi
+if [[ "$0" != "-bash" ]]; then
+ return 0 # only read the below if sourced in Shell
+fi 
 
-  # *** Easybuild Settings 
-  initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
-  
-  # *** Lmod settings *** 
-  export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules
-  export LMOD_MODULERCFILE=${GR}/etc/lmod/rc.lua
+if [[ "$(id -u)" -eq 0 ]]; then
+ return 0 # the below is only for non-root users
+fi 
 
-  # *** Slurm settings *** 
-  # a better format for Slurm's squeue command 
-  export SQUEUE_FORMAT="%.18i %.4P %.12j %.8u %.2t %.10M %.10L %.3D %.3C %.9b %.4m %R"
 
-  # *** Podman settings *** 
-  if [[ -f /usr/bin/podman ]]; then
-    alias docker=podman
-  fi
-  # This is required for rootless podman services running under systemd
-  export XDG_RUNTIME_DIR=/run/user/$(id -u)
+# Security: everyone except app managers should have a umask of 0027 or 0007 
+if [[ "$EUID" -ne ${UID_APPMGR} ]]; then 
+  umask 0007
 fi
+# Generic Environment variables and PATHs
+if htyInGroup ${GID_SUPERUSERS}; then 
+  htyAppendPath "${GR}/sbin"
+fi
+htyPrependPath "${GR}/bin" "${GR}/opt/python/bin"
+htyAppendPath "~/.local/bin"
+if [[ -d ${GR}/opt/miniconda ]]; then
+  htyAppendPath ${GR}/opt/miniconda/bin
+fi
+
+# training wheels wait time in seconds. 0 requires confirm
+export TWW=$(htyReadConfigOrDefault "training-wheels-wait")
+
+# replace dark blue color in terminal and VI
+COL=$(htyReadConfigOrDefault "dircolors")
+if [[ -z ${COL} ]]; then
+  COL=$(dircolors)
+  eval ${COL/di=01;34/di=01;36}
+else
+  eval ${COL}
+fi
+
+# *** Spack settings ***
+if [[ -z ${SPACK_ROOT} ]]; then
+  export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
+fi
+if [[ -n ${SPACK_ROOT} ]]; then 
+  initSpack
+fi
+
+# *** Easybuild Settings 
+initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
+
+# *** Lmod settings *** 
+export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules
+export LMOD_MODULERCFILE=${GR}/etc/lmod/rc.lua
+
+# *** Slurm settings *** 
+# a better format for Slurm's squeue command 
+export SQUEUE_FORMAT="%.18i %.4P %.12j %.8u %.2t %.10M %.10L %.3D %.3C %.9b %.4m %R"
+
+# *** Podman settings *** 
+if [[ -f /usr/bin/podman ]]; then
+  alias docker=podman
+fi
+# This is required for rootless podman services running under systemd
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+
+# Show a help message after login  
+if [[ -z "$(htyReadConfigOrDefault "quiet")" ]]; then
+  htyEcho "run 'hpctoys' to show menu or" 
+  htyEcho "'hty quiet' to stop this message"
+fi
+
 
