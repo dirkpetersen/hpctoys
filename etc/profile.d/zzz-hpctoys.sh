@@ -175,9 +175,24 @@ htyGithubInitRepos() {
   git push --set-upstream origin main
 
   cd "${CURRDIR}"
-
+  return 0
 }
 
+htyIncrementTrailingNumber() {
+  MSG="${FUNCNAME[0]} <string-with-training-num>"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local LASTINT; local BASE
+  if [[ $1 =~ ([0-9]+)[^0-9]*$ ]]; then
+    LASTINT=${BASH_REMATCH[1]}
+    BASE=${1%${LASTINT}}
+    let LASTINT++
+    printf "${BASE}${LASTINT}"
+    return 0
+  else
+    printf "${1}"
+  fi
+  return 0
+}
 
 htyAddLineToFile() {  
   # htyAddLineToFile <line> <filename>
@@ -219,18 +234,34 @@ htyRemoveTrailingSlashes() {
   echo ${MYPATH}
 }
 
-htyFilesPlain() {
+htyFilesFull() {
   MSG="${FUNCNAME[0]} <folder> [file-or-wildcard] [max-entries]"
   [[ -z $1 ]] && echo ${MSG} && return 1
+  htyFilesPlain "$1" "$2" "$3" "full"
+}
+
+htyFilesPlain() {
+  MSG="${FUNCNAME[0]} <folder> [file-or-wildcard] [max-entries] [include-full-path]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local FLD
+  eval FLD="$1"
   local MYPAT="*"
   local MYMAX="tee"
   [[ -n $2 ]] && MYPAT="$2"
   [[ $3 -gt 0 ]] && MYMAX="head -n $3"
-  find "$1" -maxdepth 1 -type f,l \
+  if [[ -z $4 ]]; then
+    find "${FLD}" -maxdepth 1 -type f,l \
             -iname "${MYPAT}" -printf "%f\n" \
             | grep -v '^\.' \
             | sort --ignore-case | ${MYMAX}
+  else
+    find "${FLD}" -maxdepth 1 -type f,l \
+            -iname "${MYPAT}" \
+            | grep -v '/\.' \
+            | sort --ignore-case | ${MYMAX}
+  fi
 }
+
 
 htyDialogError() {
   MSG="${FUNCNAME[0]} \"<return-code>\" \"<error-message>\""
@@ -322,17 +353,19 @@ htyFileSel() {
 }
 
 htyFolderSel() {
-  MSG="${FUNCNAME[0]} <message> [default-folder]"
+  MSG="${FUNCNAME[0]} <message> [default-folder] [title]"
   [[ -z $1 ]] && echo ${MSG} && return 1
   local MYCFG=~/.config/hpctoys/foldersel
   local MYAWCFG=~/.config/hpctoys/foldersel_always
-  local RET=""; local DEF=""
+  local RET=""; local DEF=""; local TITLE=""
   local OPT=(); local MYFLDS; local DIALOGRC 
   export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
   # make array from last 25 lines in reverse order
   readarray -n 25 -t MYFLDS < <(tac ${MYCFG})
   MYAW=$(htyReadConfigOrDefault "${MYAWCFG}" '-')
   RES='loop'
+  TITLE="Select Folder"
+  [[ -n $3 ]] && TITLE="$3"
   while [[ "$RES" == "loop" ]]; do
     if [[ -n $2 ]]; then
       OPT+=("$2" "")
@@ -350,7 +383,7 @@ htyFolderSel() {
       OPT+=("${FLD}" "")    
     done
     RES=$(dialog --backtitle "HPC Toys" \
-	       --title "Select Folder ($M)" \
+	       --title "${TITLE} ($M)" \
                --default-item "${DEF}" \
 	       --menu "$1" 0 0 0 "${OPT[@]}" \
 	       3>&2 2>&1 1>&3-  # 2>&1 1>/dev/tty 
@@ -382,7 +415,7 @@ htyFolderSel() {
   if [[ ${#RES} -gt 1 ]]; then 
     echo "${RES}" >> ~/.config/hpctoys/foldersel
   fi
-  printf "${RES}"
+  #printf "${RES}"
 return 0
 }
 
@@ -778,12 +811,14 @@ if [[ -n "${BASH}" ]]; then
   export -f htyGitIsInRepos
   export -f htyGitInitRepos
   export -f htyGithubInitRepos
+  export -f htyIncrementTrailingNumber
   export -f htyAddLineToFile
   export -f htyAddLineBelowLineToFile
   export -f htyReplaceLineInFile
   export -f htyCommentAndReplaceLineInFile
   export -f htyRemoveTrailingSlashes
   export -f htyFilesPlain
+  export -f htyFilesFull
   export -f htyFileSel
   export -f htyFolderSel
   export -f htyIsItemInList

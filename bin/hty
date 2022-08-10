@@ -12,6 +12,7 @@ SUBCMD=$1
 ME=$(whoami)
 STARTDIR=$(pwd)
 STARTBASE=$(basename ${STARTDIR})
+GITMINFILES=1 # number of files in git after blank init
 
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
 source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh
@@ -85,36 +86,41 @@ EOF
   fi
 }
 
+## Create a Slurm job array 
+
 arrayjob() {
   #MSG="${FUNCNAME[0]} <binary> <script>"
   #[[ -z $1 ]] && echo ${MSG} && return 1
-  MYBIN=$1;  MYSHEBANG=""; MYJOBARR=""
-  RES=""
+  MYBIN=$1;  MYSHEBANG=""; RES=""
+  MYJOBARR="${ME}-job-arr1"; 
   [[ $1 == "R" ]] && MYBIN="Rscript"
   [[ $1 == "python" ]] && MYBIN="python3"
 QST=$(cat << EOF
 We will now create a Slurm job array and submit
-it to the cluster. The idea of an array job is
-that you have one script that is executed with 
-multiple data files. Each combination of script
-and data file is an array job and the collection
-of all data files and the script is called a job
-array.
+it to the cluster. The idea of job arrays is
+that you have one script that is executed many 
+times and each time with a different data file.
+Each combination of script and data file is an
+array job and the collection of all data files 
+and the script is called a job array.
 As part of this process we will use common best 
 practices, manage our code with Git, and ensure 
 that code and data are kept in separate folders.
 Please enter a short but meaningful name or id 
 for your job array. You will use it to track 
-progress in your job arrays
+progress with your compute jobs.
 EOF
-)   
+) 
+  MYJOBARR=$(htyReadConfigOrDefault "lastjobarray" "${ME}-job-arr0")
+  MYJOBARR=$(htyIncrementTrailingNumber "${MYJOBARR}")	   
   htyDialogInputbox "${QST}" \
-      "job-arr1-${ME}" "Job Array Name" \
+      "${MYJOBARR}" "Job Array Name" \
       || return 1
-  MYJOBARR="${RES}"
+  MYJOBARR=${RES// /-}
+  echo "${MYJOBARR}" > ~/.config/hpctoys/lastjobarray
   
 QST=$(cat << EOF
-Now select a project folder name that has a 
+Now we select a project folder name that has a 
 Python, R, or Shell (other) script but NO data.
 If you don't have a project folder with a script 
 yet, please enter a new folder name without path 
@@ -130,8 +136,8 @@ yphens to ensure this folder name can be in a URL
 on Github later.
 
 Enter a project folder name or leave blank to
-select an existing folder with the folder 
-browser.
+select an existing folder with the folder browser
+in th next step.
 EOF
 )
   RES=""
@@ -141,10 +147,10 @@ EOF
   NEWFLD=""
 
   if [[ -n ${RES} ]]; then
-    NEWFLD={$RES}
+    NEWFLD=${RES}
     QST=$(cat << EOF
 Please select a folder in which we create your
-new project sub folder. 
+new project sub folder "${NEWFLD}".
 You can either select a previously used folder
 or you start from 'root' or 'home' and browse 
 through the folders with the arrow keys and 
@@ -165,62 +171,102 @@ EOF
 
   if [[ -z ${NEWFLD} ]]; then
     MAXSIZEFLD=10240 # 10MB max size
-    SIZEFLD=(du -hs "${REPOSFLD}")
-    if [[ ${MAXSIZEFLD} -gt ${SIZEFLD} ]]; then
+    SIZEFLD=(du -s "${REPOSFLD}")
+    if [[ ${SIZEFLD} -gt ${MAXSIZEFLD} ]]; then
       QST=$(cat << EOF
 The folder you chose is larger than 10 MB which
-is not supported by HPC Toys. Rememder that code
+is not supported by HPC Toys. Remember that code
 and data must be stored in different locations.
-Please enter new new project folder name that 
-will be created inside this folder. 
+Please enter a new project folder name that 
+will be created inside ${REPOSFLD}. 
 EOF
-)     htyDialogInputbox "${QST}" "project1-${ME}" \
+)     
+      htyDialogInputbox "${QST}" "${ME}-project-1" \
       "${MYJOBARR} Folder" || return 1 
-      NEWFLD={$RES}
+      NEWFLD=${RES}
     fi
   fi
+
   if [[ -n ${NEWFLD} ]]; then
     NEWFLD=${NEWFLD// /-}
     NEWFLD=${NEWFLD//_/-}
     NEWFLD=${NEWFLD//./-}
     NEWFLD=$(htyRemoveTrailingSlashes "${NEWFLD}")
-    REPOSFLD=${REPOSFLD}/${NEWFLD}
-    mkdir -p $REPOSFLD
+    eval REPOSFLD=${REPOSFLD}/${NEWFLD}
+    mkdir -p "${REPOSFLD}"
+    htyEcho "${REPOSFLD}"
   fi
 
-  # REPOSFLD is now set, initialize git repos 
-  
-  htyGitIsInRepos "${REPOSFLD}" \
-           || htyGitInitRepos "${REPOSFLD}" 
+  # REPOSFLD is now set, expand and initialize git repos
+  eval REPOSFLD="${REPOSFLD}"
+  PLAINFLD=$(basename "${REPOSFLD}")
+  GHORG=$(htyReadConfigOrDefault "github_login") 
 
-  QST=$(cat << EOF
+  
+  if ! htyGitIsInRepos "${REPOSFLD}"; then
+    if htyGitInitRepos "${REPOSFLD}"; then
+       ##########
+      QST=$(cat << EOF
+Git repository "${PLAINFLD}" was created with:
+  git init
+  git symbolic-ref HEAD refs/heads/main
+  git add -A .
+  git commit -a -m "Initial commit" 
+
+Would you also like to create this repostory on
+Github? 
+
+If you select 'Yes', I will run these commmands:
+  git remote add origin git@github.com:${GHORG}/${PLAINFLD}.git
+  git remote -v
+  git push --set-upstream origin main
+EOF
+)
+       if dialog --yesno "${QST}" 0 0; then
+          if htyGithubInitRepos; then 
+            dialog --yesno "Github repos was created !" 0 0
+	  fi
+       fi      
+    fi
+  fi
+
+  ####### let's pick the Code file """""""
+
+  MYFILE="- Create New File -"
+
+  # are there even existing files in there ?
+  N=$(htyFilesPlain "${REPOSFLD}" | wc -w)
+  if [[ $N -gt ${GITMINFILES} ]]; then
+    QST=$(cat << EOF
 Now select the code file you would like to use
 for your array job. This should be a file ending
 with .py or .R or .sh. If you are not seeing 
-a suitable file please "* Create New file *"
+a suitable file please use "- Create New File -"
 EOF
 )
+    htyFileSel "${QST}" "${REPOSFLD}"  "*" "0" \
+             "- Create New File -" || return 1
+    MYFILE="${RES}"
+  fi
 
-  htyFileSel "${QST}" "${REPOSFLD}"  "*" "0" \
-             "* Create New file *" || return 1
-  MYFILE="${RES}"
-  if [[ "${MYFILE}" == "* Create New file *" ]]; then
-    QST=$(cat << EOF
+  if [[ "${MYFILE}" =~ "- Create New File -" ]]; then
+      QST=$(cat << EOF
+"${REPOSFLD}" is empty.
 Please enter a file name that ends with .py or  
-.R. If you do not enter a file extension I will
-create Slurm submission script with an extension
+.R! If you do not enter a file extension I will
+create a Slurm submission script with an extension
 .sub.
 EOF
 )    
     htyDialogInputbox "${QST}" "" \
-      "Create New File" || return 1
-    MYFILE="${RES}"
-    MYFILE=$(htyRemoveTrailingSlashes "${MYFILE}")
-    MYFILE=${MYFILE// /-}
-  else
-    MYFILE=$(htyRemoveTrailingSlashes "${MYFILE}")
+	"Create New File" || return 1
+      MYFILE="${RES}"
+      MYFILE=$(htyRemoveTrailingSlashes "${MYFILE}")
+      MYFILE=${MYFILE// /-}
   fi
-  
+
+  touch "${REPOSFLD}/${MYFILE}"
+
   ## checking if R or Python or Shell 
 
   MYEXT=${MYFILE##*.}
@@ -235,9 +281,10 @@ EOF
   elif [[ "${MYEXT,,}" == "py" ]]; then
     MYEXT='py'    
     MYBIN='python3'
+  elif [[ "${MYEXT,,}" == "sh" ]]; then
+    MYEXT='sh'
+    MYBIN='sh'
   fi
-
-  touch "${REPOSFLD}/${MYFILE}" 
 
   #### Select data files, one and more folders 
 
@@ -253,32 +300,44 @@ EOF
   FQST=$(cat << EOF
 Now we need to select the data files you would
 like to run with your script. You can check files
-or simply choose "* all files *" to include all
+or simply choose "- all files -" to include all
 files in that folder.
 EOF
 )
 
-  FLDEND=""
-  MYDATA=()
+  FLDEND=""  # yes = select no more folders
+  MYDATA=()  # Array that contains all selected files
   while [[ -z "${FLDEND}" ]]; do 
-    htyFolderSel "${DQST}" || FLDEND='yes'
+    htyFolderSel "${DQST}" "" "Select Data Folder" \
+               || FLDEND='yes'
     FLD="${RES}"
-    if [[ -z "${FLDEND}" ]]; then
+    NOFILES=""
+    INSRT=${#MYDATA[@]}
+    N=$(htyFilesPlain "${FLD}" | wc -w)
+    if [[ $N -eq 0 ]]; then
+      NOFILES="No files found in Folder ${FLD}.\n"
+    fi
+    if [[ -z "${FLDEND}" ]] && [[ $N -gt 0 ]]; then
       htyFileSelMulti "${FQST}" "${FLD}" "*" "0" \
-        "* all files *" || FLDEND='yes'
+	"- all files -" || FLDEND='yes'
       if [[ -z "${FLDEND}" ]]; then
-        for F in ${RES}; do 
-          MYDATA+=("${FLD}/${F}")
-        done
+	if [[ "${RES}" =~ "- all files -" ]]; then
+	  readarray -O ${INSRT} -t \
+	         MYDATA < <(htyFilesFull "${FLD}")
+	else
+	  for F in ${RES}; do 
+	    MYDATA+=("${FLD}/${F}")
+	  done
+	fi
       fi 
     fi
-    dialog --yesno "Select files from other data folders?" 0 0 \
+    dialog --yesno "${NOFILES}Select more files from other data folders?" 0 0 \
                    || FLDEND='yes'
-  done 
-
-  htyEcho "${MYDATA[@]}" 0
+  done
+  # write MYDATA array to file
+  printf "%s\n" "${MYDATA[@]}" \
+        > "${REPOSFLD}/${MYJOBARR}-datafiles.txt"
  
-
 
   MYSLURM="" # a block with SHEBANG, SBATCH DIRECTIVES
   #check if the script starts with the right shebang
@@ -292,7 +351,6 @@ EOF
   #if ! head -n 1 "$2" | grep -q '^#!.*'"${MYBIN}"'$'; then
   #  SHEBANG="#! /usr/bin/env ${MYBIN}"
   #fi
- 
 }
 
 spinner() {
