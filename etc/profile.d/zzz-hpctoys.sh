@@ -11,6 +11,7 @@
 #  TARNOEXT="${TARFILE%%.*}" search all . from end of file 
 #  ONLYEXT="${TARFILE#*.}" search first . from begin of file 
 # Chop off 1 from: BEGIN=${STR:1}  END=${STR::-1}
+# last command argument:  eval last_arg=\$$#
 
 GID_SUPERUSERS=111111
 UID_APPMGR=222222
@@ -143,9 +144,9 @@ htyGitInitRepos() {
 }
 
 htyGithubInitRepos() {
-  MSG="${FUNCNAME[0]} <folder>"
-  [[ -z $1 ]] && echo ${MSG} && return 1
-  local CURRDIR=$(pwd); local GDIR=${1%+(/)}
+  MSG="${FUNCNAME[0]} <user-org/repos> <folder>"
+  [[ -z $2 ]] && echo ${MSG} && return 1
+  local CURRDIR=$(pwd); local GDIR=${2%+(/)}; local ERR=0
 
   if [[ "${GDIR}" != "${CURRDIR}" ]]; then
     cd "${GDIR}"
@@ -169,17 +170,25 @@ htyGithubInitRepos() {
      return 1
   fi
 
-  MYREPOS=$(basename "${GDIR}")
-  git remote add origin git@github.com:${MYREPOS}.git
-  git remote -v
-  git push --set-upstream origin main
+  MYREPOS=$(htyRemoveTrailingSlashes $1)
 
+  if ! git ls-remote git@github.com:${MYREPOS}.git; then
+     echoerr " Error listing github.com:${MYREPOS} !"
+     return 1 
+  fi
+
+  git remote add origin git@github.com:${MYREPOS}.git
+  [[ $? -gt 0 ]] && ERR=1
+  git remote -v
+  [[ $? -gt 0 ]] && ERR=1
+  git push --set-upstream origin main
+  [[ $? -gt 0 ]] && ERR=1
   cd "${CURRDIR}"
-  return 0
+  return ${ERR}
 }
 
 htyIncrementTrailingNumber() {
-  MSG="${FUNCNAME[0]} <string-with-training-num>"
+  MSG="${FUNCNAME[0]} <string-with-trailing-num>"
   [[ -z $1 ]] && echo ${MSG} && return 1
   local LASTINT; local BASE
   if [[ $1 =~ ([0-9]+)[^0-9]*$ ]]; then

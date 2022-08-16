@@ -1,7 +1,5 @@
 #! /bin/bash
 
-set -e 
-
 # hty - HPCToys commands 
 #
 # notes: 
@@ -20,18 +18,20 @@ source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh
 htyRootCheck || exit
 
 #initLpython
-
-shift
+[[ -n $1 ]] && shift 
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
   #echo "OPTION: -${OPTION} ARG: ${OPTARG}"
   eval OPT_${OPTION}=\$OPTARG
 done
 shift $((OPTIND - 1))
 
+if [[ "${OPT_s}" == "e" ]]; then
+  set -e
+fi
 
 # various functions are executed as subcommands 
 
-longterm(){  
+longterm(){
   SN=$(tmux list-sessions -F "#S" 2>/dev/null)
   if [[ -z ${SN} ]]; then
 QST=$(cat << EOF
@@ -200,9 +200,9 @@ EOF
   # REPOSFLD is now set, expand and initialize git repos
   eval REPOSFLD="${REPOSFLD}"
   PLAINFLD=$(basename "${REPOSFLD}")
+  # this needs to change to allow more options
   GHORG=$(htyReadConfigOrDefault "github_login") 
 
-  
   if ! htyGitIsInRepos "${REPOSFLD}"; then
     if htyGitInitRepos "${REPOSFLD}"; then
        ##########
@@ -220,13 +220,32 @@ If you select 'Yes', I will run these commmands:
   git remote add origin git@github.com:${GHORG}/${PLAINFLD}.git
   git remote -v
   git push --set-upstream origin main
+
+Before you hit 'Yes', please ensure that this 
+empty private repository exists: 
+github.com:${GHORG}/${PLAINFLD} 
 EOF
 )
-       if dialog --yesno "${QST}" 0 0; then
-          if htyGithubInitRepos; then 
-            dialog --yesno "Github repos was created !" 0 0
+      if dialog --yesno "${QST}" 0 0; then
+	OUT=$(mktemp "${TMPDIR}/hpctoys.XXXXX")
+	TIT="Error initializing Github repos"
+	if git ls-remote git@github.com:${GHORG}/${PLAINFLD} \
+  	                           >> "${OUT}" 2>&1; then
+          if htyGithubInitRepos "${GHORG}/${PLAINFLD}" \
+		     "${REPOSFLD}" >> "${OUT}" 2>&1 ; then
+            TIT="Successfully initialized Github repos"
 	  fi
-       fi      
+	else 
+	  TIT="Error accessing Github repository"
+	  echo "" >> "${OUT}"
+	  echo "Unable to list github.com:${GHORG}/${PLAINFLD}" >> "${OUT}" 
+	  echo "Have you created an empty private repository with " >> "${OUT}"
+	  echo "NO .gitignore, README.md or license on github.com ?" >> "${OUT}"
+	fi
+	dialog --backtitle "HPC Toys" \
+	       --title "${TIT}"  \
+	       --tailbox "${OUT}" 0 0
+      fi
     fi
   fi
 
@@ -310,7 +329,12 @@ EOF
   while [[ -z "${FLDEND}" ]]; do 
     htyFolderSel "${DQST}" "" "Select Data Folder" \
                || FLDEND='yes'
-    FLD="${RES}"
+    eval FLD="${RES}"
+    if [[ "${FLD}" == "${REPOSFLD}" ]]; then 
+      dialog --msgbox \
+        "Data and Code folders need to be separate" 0 0 
+      continue 
+    fi 
     NOFILES=""
     INSRT=${#MYDATA[@]}
     N=$(htyFilesPlain "${FLD}" | wc -w)
@@ -346,11 +370,42 @@ EOF
     MYSLURM+="#! /usr/bin/env ${MYBIN}\n"
   fi
 
-
   #check if the script starts with the right shebang
   #if ! head -n 1 "$2" | grep -q '^#!.*'"${MYBIN}"'$'; then
   #  SHEBANG="#! /usr/bin/env ${MYBIN}"
   #fi
+
+ SNIP_R=$(cat << EOF
+##### Begin HPC Toys ##########
+# Read the N-th line from a pointers file
+# (ptsfile) that contains a list of file
+# names of data files being processed.
+# N = tid = SLURM_ARRAY_TASK_ID
+args <- commandArgs(TRUE)
+if (length(args) == 0) {
+  stop("enter a file name of a pointers file as last argument")
+}
+ptsfile <- tail(args, n=1)
+if (!file.exists(ptsfile)) {
+  stop(sprintf("Pointers file %s does not exist.", ptsfile))
+}
+fh <- file(ptsfile, "r")
+tid <- Sys.getenv(c("SLURM_ARRAY_TASK_ID"))
+if (tid == '') {tid <- "1"}
+dtfiles <- readLines(fh)
+if (length(dtfiles) < strtoi(tid)) {
+  stop("Task ID larger than number of data files")
+}
+dtfile <- dtfiles[strtoi(tid)]
+close(fh)
+cat ("Data File: ", dtfile,'\n')
+fh <- file(dtfile, "r")
+cat ("1st line of File:\n",readLines(fh,n=1),'\n')
+close(fh)
+##### End HPC Toys ##########
+EOF
+)
+
 }
 
 spinner() {
@@ -381,7 +436,8 @@ args() {
   echo ""
 }
 
-if [[ ${SUBCMD} =~ ^(longterm|arrayjob|spiner|quiet|help|args)$ ]]; then
+SUBCOMMANDS='longterm|arrayjob|spinner|quiet|help|args'
+if [[ ${SUBCMD} =~ ^(${SUBCOMMANDS})$ ]]; then
   ${SUBCMD} "$@"  
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
