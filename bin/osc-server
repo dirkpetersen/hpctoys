@@ -13,7 +13,7 @@ OPT_i="${DEFIMAGE}" # --image
 SCR=${0##*/}
 SUBCMD=$1
 
-initLpython
+#initLpython
 
 shift
 while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
@@ -26,7 +26,7 @@ if [[ -z ${HPCTOYS_ROOT} ]]; then
   echo "HPCTOYS_ROOT not set, exiting..."
   exit
 fi
-export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+#export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 if [[ -f ~/.openstackrc ]]; then
   . ~/.openstackrc
 else
@@ -126,7 +126,7 @@ help() {
   echo " ${SCR} newimage <URL> <Image-Name>"
   echo " ${SCR} projectpurge (delete all resources)"
   echo " ${SCR} showres  (show machine flavors and images)"
-  echo " ${SCR} sshkey (refresh key from .ssh/id_rsa.pub)"
+  echo " ${SCR} sshkey (refresh key from id_ed25519 or id_rsa)"
 
   echo -e "\nfor example:"
   echo -e " ${SCR} create -f ${OPT_f} -i \"${OPT_i}\" myserver"
@@ -261,14 +261,19 @@ showres() {
 }
 
 sshkey() {
+  local PUB="~/.ssh/id_dummy.pub"
   if [[ -f ~/.ssh/id_rsa.pub ]]; then
-    echo "remove key os_key_$(whoami) if exists... "
-    openstack keypair delete os_key_$(whoami) 2>/dev/null
-    echo "refreshing public key os_key_$(whoami) ... "
-    openstack keypair create --public-key ~/.ssh/id_rsa.pub os_key_$(whoami)
+    eval PUB="~/.ssh/id_rsa.pub"
+  elif [[ -f ~/.ssh/id_ed25519.pub ]]; then
+    eval PUB="~/.ssh/id_ed25519.pub"
   else
-    echo "Public key ~/.ssh/id_rsa.pub does not exist. Please create it with 'ssh-keygen'"
-  fi
+    echo "Public keys ~/.ssh/id_ed25519.pub and ~/.ssh/id_rsa.pub do not exist. Please create it with 'ssh-keygen'"
+    return 1
+  fi  
+  echo "remove key os_key_$(whoami) if exists... "
+  openstack keypair delete os_key_$(whoami) 2>/dev/null
+  echo "refreshing public key os_key_$(whoami) ... "
+  openstack keypair create --public-key "${PUB}" os_key_$(whoami) 
 }
 
 args() {

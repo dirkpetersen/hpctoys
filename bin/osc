@@ -1,6 +1,6 @@
 #! /bin/bash
 
-initLpython
+#initLpython
 
 export PIP_USER=no
 #export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
