@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -x
+#set -x
 
 CURRDIR=$(pwd)
 if [[ -f ${BASH_SOURCE} ]]; then
@@ -635,11 +635,12 @@ EOF
 
 # available ssh keys and default keys
 KEYS=$(htyFilesPlain ~/.ssh "*.pub")
+#htyEcho "KEYS1: ${KEYS}" 0
 SELKEYS=""
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
-  htyAddLineToFile 'eval $(keychain --eval id_ed25519)' ${PROF}
+  htyAddLineToFile 'eval $(keychain --quiet --eval id_ed25519)' ${PROF}
   KEYS="id_ed25519.pub"
 fi 
 
@@ -650,6 +651,7 @@ if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
     SELKEYS="id_rsa.pub"
   fi
 fi
+#htyEcho "KEYS2: ${KEYS}" 0
 
 # ask which keys should be loaded in keychain/ssh-agent
 QST=$(cat << EOF
@@ -661,24 +663,27 @@ EOF
 )
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
   htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}"
-elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
-  RES=$KEYS
-else
+  KEYS="${RES}" 
+elif [[ $(wc -w <<< ${KEYS}) -eq 0 ]]; then
   dialog --msgbox  "No *.pub keys found in ~/.ssh folder. " 0 0
 fi
-echo ${RES} > ~/.config/hpctoys/load_sshkeys
+echo ${KEYS} > ~/.config/hpctoys/load_sshkeys
+#htyEcho "KEYS3: ${KEYS}" 0
 
 # clean up existing profile from ssh-agent and keychain
 sed -i '/^eval `ssh-agent*/d' ${PROF} 
 sed -i '/^eval $(ssh-agent*/d' ${PROF}
 sed -i '/^eval $(keychain*/d' ${PROF}
-echo "eval \$(keychain --eval ${RES//.pub/})" >> ${PROF}
+echo "eval \$(keychain --quiet --eval ${KEYS//.pub/})" >> ${PROF}
 
 # add each selected key to authorized_keys if not already added
 touch ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-for K in ${RES}; do
-  PK=$(cat .ssh/$K)
+#htyEcho "KEYS4: ${KEYS}" 0
+for K in ${KEYS}; do
+  #htyEcho "K $K" 0
+  PK=$(cat ~/.ssh/$K)
+  #htyEcho "PK $PK" 0
   if ! grep -q "${PK}" ~/.ssh/authorized_keys; then
     echo "${PK}" >> ~/.ssh/authorized_keys
   fi
@@ -818,7 +823,7 @@ if [[ -z ${SUBCMD} ]]; then
   igithub
   iawscli2
   iopenssl
-  ilpython
+  #ilpython
   iminiconda
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
