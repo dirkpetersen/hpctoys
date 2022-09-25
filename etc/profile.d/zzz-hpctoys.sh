@@ -259,12 +259,12 @@ htyFilesPlain() {
   [[ -n $2 ]] && MYPAT="$2"
   [[ $3 -gt 0 ]] && MYMAX="head -n $3"
   if [[ -z $4 ]]; then
-    find "${FLD}" -maxdepth 1 -type f,l \
+    find "${FLD}" -maxdepth 1 \( -type f -o -type l \) \
             -iname "${MYPAT}" -printf "%f\n" \
             | grep -v '^\.' \
             | sort --ignore-case | ${MYMAX}
   else
-    find "${FLD}" -maxdepth 1 -type f,l \
+    find "${FLD}" -maxdepth 1 \( -type f -o -type l \) \
             -iname "${MYPAT}" \
             | grep -v '/\.' \
             | sort --ignore-case | ${MYMAX}
