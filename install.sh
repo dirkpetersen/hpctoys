@@ -30,21 +30,23 @@ while getopts "a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:" OPTION; do
 done
 shift $((OPTIND - 1))
 
+
+if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/install_success ]]; then 
+  echoerr "\n *** Preparing Installation of HPC Toys ***"
+  echoerr " \n If you have sudo rights, cancel this installer,"  
+  echoerr " run 'sudo test' and restart the install"
+  echoerr " \n *** Waiting for 3 sec *** ..."
+  echoerr " "
+  read -t 3 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
+  if [[ $? -eq 0 ]]; then
+    echoerr " Setup interrupted, exiting ...\n"
+    exit
+  fi
+fi
+
 umask 0000
 # bin folder for other single binaries
 mkdir -p ${HPCTOYS_ROOT}/opt/other/bin
-
-echoerr "\n *** Preparing Installation of HPC Toys ***"
-echoerr " \n If you have sudo rights, cancel this installer,"  
-echoerr " run 'sudo test' and restart the install"
-echoerr " \n *** Waiting for 3 sec *** ..."
-echoerr " "
-read -t 3 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
-if [[ $? -eq 0 ]]; then
-  echoerr " Setup interrupted, exiting ...\n"
-  exit
-fi
-
 
 ipackages() {
 
@@ -103,7 +105,8 @@ iother() {
   CURRVER=$(pkg-config --silence-errors --modversion libffi)
   if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
     VER="3.4.2"
-    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a ]]; then
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libffi.a && 
+          ! -f ${HPCTOYS_ROOT}/opt/other/lib64/libffi.a ]]; then
       echoerr "\n * Installing 'libffi for mc and python' ${VER} ... *\n"
       sleep 1
       cd ${INTMP}
@@ -807,24 +810,27 @@ read -n 1 -r -s -p $'\n Press enter to continue...\n'
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
+  echoerr "Purging environment modules"
+  [ -x module ] && module purge
   ipackages
   iother
   idialog
   ijq
   iyq
   ikeychain
+  imc
+  irclone
+  igithub
+  iawscli2
+  # disabling openssl and python
+  #iopenssl
+  #ilpython
+  iminiconda
   idefaults_group
   idefaults_user
   if [[ -z ${ERRLIST} ]]; then
     iquestions_user
   fi
-  imc
-  irclone
-  igithub
-  iawscli2
-  iopenssl
-  #ilpython
-  iminiconda
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
      mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
@@ -840,9 +846,11 @@ if [[ -z ${ERRLIST} ]]; then
   echoerr " HPC Toys installed ! "
   echoerr " Please logout/login or run this command:"
   echoerr " source ${PROF}"
+  touch ${HPCTOYS_ROOT}/etc/hpctoys/install_success
 else
   echoerr "Errors in these installations: ${ERRLIST}"
   echoerr "Check ${INTMP} for troubleshooting"
+  rm -f ${HPCTOYS_ROOT}/etc/hpctoys/install_success
 fi
 cd ${CURRDIR}
 
