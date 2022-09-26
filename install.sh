@@ -623,7 +623,8 @@ EOF
 dialog --pause "${QST}" 15 50 30
 [[ $? -ne 0 ]] && return 1
 
-# verify Github Metadata
+
+# #####  Setting up ssh keys 
 QST=$(cat << EOF
 No public SSH keys were found in folder ~/.ssh
 You will now be asked for a passphrase for a new ssh 
@@ -640,6 +641,7 @@ EOF
 KEYS=$(htyFilesPlain ~/.ssh "*.pub")
 #htyEcho "KEYS1: ${KEYS}" 0
 SELKEYS=""
+[[ "${KEYS}" == "id_ecdsa.pub" ]] && KEYS="" # don't use Bright CM key
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
@@ -692,6 +694,9 @@ for K in ${KEYS}; do
   fi
 done
 
+
+# #### Github Metadata
+
 # git user.name
 QST=$(cat << EOF
 Now we need to setup git which is an essential 
@@ -701,8 +706,13 @@ default setting.
 EOF
 )
 RES=""
-htyDialogInputbox "${QST}" "$(git config --global user.name)"
-git config --global user.name "${RES}"
+if htyDialogInputbox "${QST}" \
+      "$(git config --global user.name)" \
+      "Enter your first and last name" ; then
+  git config --global user.name "${RES}"
+else
+  exit
+fi
 
 
 # git user.email
@@ -715,8 +725,13 @@ cases.
 EOF
 )
 RES=""
-htyDialogInputbox "${QST}" "$(git config --global user.email)"
-git config --global user.email "${RES}"
+if htyDialogInputbox "${QST}" \
+       "$(git config --global user.email)" \
+       "Enter your eMail address"; then
+  git config --global user.email "${RES}"
+else
+  exit
+fi
 
 
 # github.com login user
@@ -740,19 +755,21 @@ about two minutes. Once you have a new login name,
 come back here and enter it below. 
 EOF
 )
-htyDialogInputbox "${QST}" "$(htyReadConfigOrDefault github_login)"
-echo "${RES}" > ~/.config/hpctoys/github_login
-GHL=$(cat ~/.config/hpctoys/github_login)
-echoerr " connecting to github.com/${GHL} ..."
-GHJSON=$(curl -sL https://api.github.com/users/${GHL})
-GHID=$(echo ${GHJSON} | jq -r '.id')
-GHLOG=$(echo ${GHJSON} | jq -r '.login')
-GHNAM=$(echo ${GHJSON} | jq -r '.name')
-GHORG=$(echo ${GHJSON} | jq -r '.company')
-GHLOC=$(echo ${GHJSON} | jq -r '.location')
-GHUPD=$(echo ${GHJSON} | jq -r '.updated_at')
+if htyDialogInputbox "${QST}" \
+        "$(htyReadConfigOrDefault github_login)" \
+	"Enter your Gihub login name"; then 
+  echo "${RES}" > ~/.config/hpctoys/github_login
+  GHL=$(cat ~/.config/hpctoys/github_login)
+  echoerr " connecting to github.com/${GHL} ..."
+  GHJSON=$(curl -sL https://api.github.com/users/${GHL})
+  GHID=$(echo ${GHJSON} | jq -r '.id')
+  GHLOG=$(echo ${GHJSON} | jq -r '.login')
+  GHNAM=$(echo ${GHJSON} | jq -r '.name')
+  GHORG=$(echo ${GHJSON} | jq -r '.company')
+  GHLOC=$(echo ${GHJSON} | jq -r '.location')
+  GHUPD=$(echo ${GHJSON} | jq -r '.updated_at')
 
-# verify Github Metadata 
+  # verify Github Metadata 
 QST=$(cat << EOF
 ${GHLOG}, you are the ${GHID}th Github.com 
 user and you should have these 3 fields filled 
@@ -768,10 +785,14 @@ back to https://github.com/settings/profile
 [last updated: ${GHUPD}]
 EOF
 )
-if [[ "${GHID}" == "null" ]]; then
-  QST="Github user ${GHL} does not exist."
+  if [[ "${GHID}" == "null" ]]; then
+    QST="Github user ${GHL} does not exist."
+  fi
+  dialog --msgbox  "${QST}" 0 0
+else
+  exit
 fi
-dialog --msgbox  "${QST}" 0 0
+
 
 # check key that should be uploaded to github
 QST=$(cat << EOF
@@ -784,7 +805,8 @@ EOF
 )
 SELKEYS="$(htyReadConfigOrDefault load_sshkeys)"
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
-  htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}"
+  htyDialogChecklist "${QST}" "${KEYS}" "${SELKEYS}" \
+          "SSH key for Github?"
 elif [[ $(wc -w <<< ${KEYS}) -eq 1 ]]; then
   RES=${KEYS}
 else
@@ -797,14 +819,17 @@ echo "two -SNIP- lines, paste it at the Github page "
 echo "https://github.com/settings/ssh/new (Ctrl+Click) " 
 echo "in the 'Key' field and enter a description for "
 echo "this key in the 'Title' field. " 
+echo ""
 echo "------------SNIP-------------------------"
+i=0
 for R in ${RES}; do
+  [[ $i -gt 0 ]] && echo "-----"
   cat ~/.ssh/${R}
-  echo "----------"
+  let "i++"
 done
+i=0
 echo "------------SNIP-------------------------"
 read -n 1 -r -s -p $'\n Press enter to continue...\n'
-
 }
 
 cd ${CURRDIR}

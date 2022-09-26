@@ -271,7 +271,6 @@ htyFilesPlain() {
   fi
 }
 
-
 htyDialogError() {
   MSG="${FUNCNAME[0]} \"<return-code>\" \"<error-message>\""
   [[ -z $1 ]] && echo ${MSG} && return 1
@@ -469,9 +468,10 @@ htyDialogInputbox() {
 htyDialogChecklist() {
   # wrapper for unix dialog --checklist
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
-  MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options>"
+  MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options> [box-title]"
   [[ -z $2 ]] && echo ${MSG} && return 1
-  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc  
+  local MYTIT; local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc  
+  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$3
   OPT=()
   RES=""
   i=0
@@ -487,7 +487,7 @@ htyDialogChecklist() {
   done
   while [[ "$RES" == "" ]]; do
     RES=$(dialog --backtitle "HPC Toys" \
-                 --title "HPC Toys" \
+                 --title "${MYTIT}" \
                  --default-item "${DEF}" \
                  --checklist "$1" 0 0 0 "${OPT[@]}" \
                  3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
@@ -504,9 +504,10 @@ htyDialogChecklist() {
 htyDialogMenu() {
   # wrapper for unix dialog --menu
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
-  MSG="${FUNCNAME[0]} <message> <list-of-options> <default-option>"
+  MSG="${FUNCNAME[0]} <message> <list-of-options> <default-option> [box-title]"
   [[ -z $2 ]] && echo ${MSG} && return 1
-  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  local MYTIT; local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$3
   OPT=() # options array
   RES=""
   i=0
@@ -522,7 +523,7 @@ htyDialogMenu() {
   done
   while [[ "$RES" == "" ]]; do
     RES=$(dialog --backtitle "HPC Toys" \
-                 --title "HPC Toys" \
+                 --title "$MYTIT" \
                  --default-item "${DEF}" \
                  --menu "$1" 0 0 0 "${OPT[@]}" \
                  3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
