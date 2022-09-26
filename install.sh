@@ -20,7 +20,6 @@ SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
-PATH=${PATH}:${HPCTOYS_ROOT}/bin
 RUNCPUS=8
 [[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=$((${SLURM_CPUS_ON_NODE}*2))
 
@@ -854,6 +853,7 @@ if [[ -z ${SUBCMD} ]]; then
   #ilpython
   #iawscli2
   iminiconda
+  PATH=${PATH}:${HPCTOYS_ROOT}/bin
   idefaults_group
   idefaults_user
   if [[ -z ${ERRLIST} ]]; then
