@@ -20,7 +20,7 @@ SCR=${0##*/}
 SUBCMD=$1
 ERRLIST=""
 export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
-RUNCPUS=4
+RUNCPUS=8
 [[ -n ${SLURM_CPUS_ON_NODE} ]] && RUNCPUS=$((${SLURM_CPUS_ON_NODE}*2))
 
 [[ -n $1 ]] && shift
@@ -35,6 +35,8 @@ if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/install_success ]]; then
   echoerr "\n *** Preparing Installation of HPC Toys ***"
   echoerr " \n If you have sudo rights, cancel this installer,"  
   echoerr " run 'sudo test' and restart the install"
+  echoerr " \n This installer may take up to 5 minutes to"
+  echoerr " install source packages into the ./opt subfolder."
   echoerr " \n *** Waiting for 3 sec *** ..."
   echoerr " "
   read -t 3 -n 1 -r -s -p $' (Press any key to cancel the setup)\n'
@@ -42,6 +44,8 @@ if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/install_success ]]; then
     echoerr " Setup interrupted, exiting ...\n"
     exit
   fi
+  echoerr "\n * Purging environment modules *"
+  [ -x module ] && module purge
 fi
 
 umask 0000
@@ -84,7 +88,7 @@ ipackages() {
 
 # installing generic (other) dependencies 
 iother() {
-  
+
   # optionally install any version of ncurses 
   NCURSESOPT=''
   if [[ -z $(pkg-config --silence-errors --modversion ncurses) ]]; then
@@ -835,8 +839,6 @@ read -n 1 -r -s -p $'\n Press enter to continue...\n'
 cd ${CURRDIR}
 if [[ -z ${SUBCMD} ]]; then
   # Run all installations or comment out
-  echoerr "Purging environment modules"
-  [ -x module ] && module purge
   ipackages
   iother
   idialog
@@ -846,10 +848,10 @@ if [[ -z ${SUBCMD} ]]; then
   imc
   irclone
   igithub
-  iawscli2
-  # disabling openssl and python
+  # disabling openssl, python and awscli2
   #iopenssl
   #ilpython
+  #iawscli2
   iminiconda
   idefaults_group
   idefaults_user
