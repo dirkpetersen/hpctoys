@@ -1,15 +1,18 @@
 #! /bin/bash
 
-initLpython
+# initLpython
 
-lpython -m "pip" $@
+#lpython -m "pip" $@
 
-cmdprn=${@//--/ }
+#cmdprn=${@//--/ }
 
-if [[ $? -eq 0 ]]; then
-  logger "Python package (un)install successful: lpython -m pip $cmdprn"
-else
-  logger "Python package (un)install failed: lpython -m pip $cmdprn"
-fi
+#if [[ $? -eq 0 ]]; then
+#  logger "Python package (un)install successful: lpython -m pip $cmdprn"
+#else
+#  logger "Python package (un)install failed: lpython -m pip $cmdprn"
+#fi
 
-echoerr "\nNote: \"$@\" packages ran in ${PYTHONUSERBASE}\n"
+#echoerr "\nNote: \"$@\" packages ran in ${PYTHONUSERBASE}\n"
+
+htypip $@
+

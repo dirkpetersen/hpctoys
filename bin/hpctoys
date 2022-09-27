@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /usr/bin/env python3.9
 
 import os, sys, time
 import json, subprocess, shlex
@@ -34,7 +34,7 @@ def main():
           return True
 
         console.print("executing '%s' ..." % cmd, style=mystyle)
-         
+
         try:
             subprocess.run(cmd,shell=True, check=True)
         except subprocess.CalledProcessError as e:

@@ -30,6 +30,64 @@ if [[ "${OPT_s}" == "e" ]]; then
 fi
 
 # various functions are executed as subcommands 
+buildjob() {
+  local RET; local RES 
+  MAXCORES=$(sinfo --noheader -o "%n %c" | 
+      sort -k2,2nr | head -1 | awk '{print $2}')
+  PARTITIONS=$(sinfo --noheader -o "%25P")
+
+  # PARTITIONS=$(sinfo --noheader -o "%10P %.12l")
+  # QOSLIST=$(sacctmgr --noheader show qos format=name%25,maxwall)
+
+
+QST=$(cat << EOF
+How many CPU cores would you like to request per
+node or task. The largest node on this cluster 
+has ${MAXCORES} cpu cores. If you are using Array 
+jobs you should select 1 cpu core in most cases.
+EOF
+)
+
+  htyDialogInputbox "${QST}" "1" "How many CPU cores?"
+
+  
+  htyEcho "Cores: ${RES}" 0 
+
+QST=$(cat << EOF
+How much memory (GB) per core are you requesting?
+4GB is a fairly typical choice but you can do 
+more or less.
+EOF
+)
+
+  MEMS="1GB 2GB 4GB 8GB 16GB 32GB 64GB 128GB 256GB 512GB"
+  htyDialogMenu "${QST}" "${MEMS}" "4GB" "How much memory per core?"
+
+  htyEcho "Mem: ${RES}" 0
+
+QST=$(cat << EOF
+Please confirm the default partition or 
+EOF
+)
+
+
+  htyDialogMenu "Please select your partition" "${PARTITIONS}" "" "Confirm the partition"
+
+  htyEcho "Partition: ${RES}" 0
+  
+
+  htyDialogMenu "Please select your QOS" "${QOSLIST}" "default" "Confirm QOS"
+
+
+QST=$(cat << EOF
+Please enter the number of CPU cores you request
+for this job. 
+EOF
+)
+
+}
+
+
 
 longterm(){
   SN=$(tmux list-sessions -F "#S" 2>/dev/null)
@@ -122,7 +180,7 @@ EOF
 QST=$(cat << EOF
 Now we select a project folder name that has a 
 Python, R, or Shell (other) script but NO data.
-If you don't have a project folder with a script 
+If you do not have a project folder with a script 
 yet, please enter a new folder name without path 
 below and in the next step you use the folder 
 browser to select the path where this new folder
@@ -436,7 +494,7 @@ args() {
   echo ""
 }
 
-SUBCOMMANDS='longterm|arrayjob|spinner|quiet|help|args'
+SUBCOMMANDS='longterm|arrayjob|buildjob|spinner|quiet|help|args'
 if [[ ${SUBCMD} =~ ^(${SUBCOMMANDS})$ ]]; then
   ${SUBCMD} "$@"  
 else

@@ -550,8 +550,14 @@ idefaults_group() {
     fi
     . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
   fi
-
+  
+  # installing group python packages 
+  if ! [[ -x ${HPCTOYS_ROOT}/opt/miniconda/bin/rich ]]; then
+    echoerr "\n * Installing 'Python rich package' ... *\n"   
+    ${HPCTOYS_ROOT}/opt/miniconda/bin/python3 -m pip install rich-cli
+  fi
 }
+
 idefaults_user() {
 # default settings for the current user
 

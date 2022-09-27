@@ -427,7 +427,6 @@ htyFolderSel() {
 return 0
 }
 
-
 htyIsItemInList() {
   MSG="${FUNCNAME[0]} <item> <list of items>"
   [[ -z $2 ]] && echo ${MSG} && return 1
@@ -471,7 +470,7 @@ htyDialogChecklist() {
   MSG="${FUNCNAME[0]} <message> <list-of-options> <selected-options> [box-title]"
   [[ -z $2 ]] && echo ${MSG} && return 1
   local MYTIT; local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc  
-  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$3
+  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$4
   OPT=()
   RES=""
   i=0
@@ -507,7 +506,7 @@ htyDialogMenu() {
   MSG="${FUNCNAME[0]} <message> <list-of-options> <default-option> [box-title]"
   [[ -z $2 ]] && echo ${MSG} && return 1
   local MYTIT; local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
-  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$3
+  [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$4
   OPT=() # options array
   RES=""
   i=0
@@ -761,12 +760,17 @@ htyRootCheck() {
 initSpack(){
   # initSpack 
   if [[ -d "${SPACK_ROOT}" ]]; then
-    . ${SPACK_ROOT}/share/spack/setup-env.sh
+    source ${SPACK_ROOT}/share/spack/setup-env.sh
     if ! [[ -f  "${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash" ]]; then
-       echoerr "Spack environment not setup, run hpctoys installer... "
-    else
-       . $(cat "${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash")
+      printf "configure Spack environment ... "
+      echo "${SPACK_ROOT}" > \
+              ${HPCTOYS_ROOT}/etc/hpctoys/spack_root
+
+      echo "$(spack location -i lmod)/lmod/lmod/init/bash" > \
+              ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash
+      echo "Done!"
     fi
+    source $(cat "${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash")
   fi
 }
 
@@ -881,14 +885,30 @@ fi
 if [[ "$EUID" -ne ${UID_APPMGR} ]]; then 
   umask 0007
 fi
+
+# *** Spack settings ***
+if [[ -z ${SPACK_ROOT} ]]; then
+  export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
+fi
+if [[ -n ${SPACK_ROOT} ]]; then
+  initSpack
+fi
+
 # Generic Environment variables and PATHs
 if htyInGroup ${GID_SUPERUSERS}; then 
   htyAppendPath "${GR}/sbin"
 fi
-htyPrependPath "${GR}/bin" "${GR}/opt/python/bin"
-htyAppendPath "~/.local/bin"
+htyPrependPath "${GR}/bin" 
+htyPrependPath ~/.local/bin
+htyAppendPath ~/bin
 if [[ -d ${GR}/opt/miniconda ]]; then
   htyAppendPath ${GR}/opt/miniconda/bin
+  # get the default python for hpctoys
+  PY=$(ls -t ${GR}/opt/miniconda/bin/python3.?? | head -1)
+  if ! [[ -x ${PY} ]]; then 
+    PY="${GR}/opt/miniconda/bin/python3.9"
+  fi
+  [[ -x ${PY} ]] && export HTY_PYTHON=$PY
 fi
 
 # training wheels wait time in seconds. 0 requires confirm
@@ -901,14 +921,6 @@ if [[ -z ${COL} ]]; then
   eval ${COL/di=01;34/di=01;36}
 else
   eval ${COL}
-fi
-
-# *** Spack settings ***
-if [[ -z ${SPACK_ROOT} ]]; then
-  export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
-fi
-if [[ -n ${SPACK_ROOT} ]]; then 
-  initSpack
 fi
 
 # *** Easybuild Settings 

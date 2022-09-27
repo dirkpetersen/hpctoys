@@ -1,0 +1,59 @@
+#! /bin/bash
+
+if [[ -z ${HPCTOYS_ROOT} || -z ${HTY_PYTHON} ]]; then
+  echo "HPCTOYS_ROOT and/or HTY_PYTHON not set, exiting..."
+  exit
+fi
+
+if [[ $(id -u) -eq 0 ]]; then
+  echoerr "This script should not run as root "
+  exit
+fi
+
+echoerr " using pip with ${HTY_PYTHON} ..."
+pyver=$(${HTY_PYTHON} -c 'import sys; print(sys.version[:3])')
+
+if [[ ${pyver} < "3.7" ]]; then 
+  echo "${mypy} is version ${pyver}, but we need >= Python 3.7"
+fi
+
+# sets pip to default to --user which installs in PYTHONUSERBASE
+if [[ -z ${PYTHONUSERBASE} ]]; then 
+  export PYTHONUSERBASE=~/.local
+fi
+
+
+scriptn=${0##*/}
+cmdline="$@"
+
+case "$scriptn" in
+  pip|pip3)
+     umask 0002
+     export PIP_USER=yes
+     ;;
+  htypip)
+     # export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/pip # This not work
+     umask 0000
+     export PIP_USER=no
+     ;;
+  *)
+    echoerr "Someone created an unsupported symlink to pip3"
+    exit
+    ;;
+esac
+
+${HTY_PYTHON} -m "pip" $cmdline
+
+if [[ $? -eq 0 ]]; then
+  logger "Python package (un)install successful: $scriptn $cmdline"
+else
+  logger "Python package (un)install failed: $scriptn $cmdline"
+fi
+
+if [[ ${PIP_USER} == "yes" ]]; then
+  echoerr "\n Please note that packages are installed in ${PYTHONUSERBASE}/lib/python..."
+  echoerr " If you share 'HPC Toys' with others use 'htypip install ...' instead.\n"
+else
+  echoerr "\n Please note that packages are installed in ${HPCTOYS_ROOT}/opt/miniconda/lib/python..."
+fi
+
