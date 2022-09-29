@@ -29,61 +29,399 @@ if [[ "${OPT_s}" == "e" ]]; then
   set -e
 fi
 
+
+slurmSelectPartition() {
+  local PARTALLOWED="${1}"; local APARTS=""
+  RPART=""
+  PARTS=$(sinfo --noheader -o "%.25P[%l]" | xargs)
+  PARTS="${PARTS/\*/}"
+  PARTS="${PARTS//:00:00/}"
+  PARTS="${PARTS//-00]/-0]}"
+ 
+  # reduce PARTS to list of allowed APARTS 
+  for X in ${PARTALLOWED}; do
+    echo "X:${X}"  
+    for Y in ${PARTS}; do 
+      echo "Y:${Y}"  
+      if [[ "${Y}" =~ "${X}" ]]; then
+        APARTS+="${Y} "
+      fi  
+    done 
+  done
+
+  htyEcho "APARTS: ${APARTS}"
+
+QST=$(cat << EOF
+Please select a partition you are allowed to run
+jobs in. Note that the default maximum runtime 
+is given in [days-hours]. 
+If need to run longer than the default maximum 
+you will be asked to select a QOS setting that 
+allows for a longer time. 
+EOF
+)
+
+  htyDialogMenu "${QST}" "${APARTS}" "${DEFPART}" "Select Partition or Queue"
+  RPART=${RES%%[*}
+
+  htyEcho "RPART: ${RPART}" 0
+}
+
+slurmCheckPartition() {
+  local ACCTS=$2
+
+  OLDIFS=$IFS
+  unset IFS
+
+  for C in ${1}; do
+    eval pt_"${C%%=*}"="${C#*=}"
+  done
+  if [[ "${pt_Default}" == "YES" ]]; then
+    DEFPART="${pt_PartitionName}"  
+  fi
+  
+  echoerr "\n ****** PARTITION: ${pt_PartitionName} *********** "
+
+  #pt_PartitionName="exacloud"
+  #pt_MaxNodes="12"
+  #pt_MaxTime="1-12:00:00"
+  #pt_DenyQos="gpu_long_jobs"
+  #pt_AllowQos="gpu_long_jobs"
+  #pt_DenyAccounts="basic"
+  #pt_AllowAccounts="basic"
+  #pt_QoS="N/A"
+  #pt_AllowGroups="accessexacloud"
+  #pt_DenyGroups="accessexacloud"
+
+  # check if account is denied
+  # 
+  ACC_ALLOW=""
+  if [[ -n "${pt_AllowAccounts}" ]]; then
+    for X in ${ACCTS}; do
+      if [[ "${pt_AllowAccounts}" == "ALL" ]]; then
+        echo "$X is allowed via AllowAccounts: ${pt_AllowAccounts}"
+        ACC_ALLOW=1
+        break
+      elif htyInCsv "${X}" "${pt_AllowAccounts}"; then
+        echo "$X is allowed via AllowAccounts: ${pt_AllowAccounts}"
+        ACC_ALLOW=1
+        break
+      else
+        echo "$X is denied via AllowAccounts: ${pt_AllowAccounts}"
+        ACC_ALLOW=0
+      fi
+    done
+  elif [[ -n "${pt_DenyAccounts}" ]]; then
+    for X in ${ACCTS}; do
+      if htyInCsv "${X}" "${pt_DenyAccounts}"; then
+        echo "$X is denied via DenyAccounts: ${pt_DenyAccounts}"
+        ACC_ALLOW=0
+      else
+        echo "$X is allowed via DenyAccounts: ${pt_DenyAccounts}"
+        ACC_ALLOW=1
+        break
+      fi
+    done
+  fi
+
+  # check if Group is allowed
+  GRP_ALLOW=""
+  IFS=','
+  if [[ -n "${pt_AllowGroups}" ]]; then
+    for X in ${pt_AllowGroups}; do
+      if [[ "${X}" == "ALL" ]]; then
+        echo "$X is allowed via AllowGroups"
+        GRP_ALLOW=1
+        break
+      elif htyInGroup "${X}"; then
+	echo "$X is allowed via AllowGroups"
+	GRP_ALLOW=1
+        break
+      else
+        echo "$X is denied via AllowGroups"
+        GRP_ALLOW=0
+      fi 
+    done
+  elif [[ -n "${pt_DenyGroups}" ]]; then
+     for X in ${pt_DenyGroups}; do
+      if htyInGroup "${X}"; then
+        echo "$X is denied via DenyGroups"
+        GRP_ALLOW=0
+      else
+        echo "$X is allowed DenyGroups"
+        GRP_ALLOW=1
+        break
+      fi
+    done     
+  fi
+  unset IFS
+
+  #echo "MYACC: ${MYACC}"
+  #for A in ${MYACC}; do
+  #  echo "A:$A"
+  #  echo "MYQOS[$A]: ${MYQOS[$A]}"
+  #done
+  IFS=${OLDIFS}
+
+  if [[ ${ACC_ALLOW} -eq 0 ]]; then
+    return 1
+  fi  
+  if [[ ${GRP_ALLOW} -eq 0 ]]; then
+    return 1
+  fi  
+}
+
 # various functions are executed as subcommands 
 buildjob() {
-  local RET; local RES 
-  MAXCORES=$(sinfo --noheader -o "%n %c" | 
-      sort -k2,2nr | head -1 | awk '{print $2}')
-  PARTITIONS=$(sinfo --noheader -o "%25P")
+  local RET; local RES; local NODES
+  local PARTS; local WTIMES; local DEFPART
+  local RCORES; local RMEM; local RTIME
 
-  # PARTITIONS=$(sinfo --noheader -o "%10P %.12l")
-  # QOSLIST=$(sacctmgr --noheader show qos format=name%25,maxwall)
+  #PARTITIONS=$(sinfo --noheader -o "%.25P" | xargs)
+  #PARTITIONS="${PARTITIONS/\*/}"
+  #MYPARTS=
+
+  # get partitions with configs from Slurm
+  ALLPARTS=$(scontrol show partition --oneliner)
+
+  # get my account and QOS info from Slurm
+  MYACCQOS=$(sacctmgr --noheader show associations \
+             where user="${ME}"  format=account%25,qos%256)
+
+  MYACC='' # a list of my accounts
+  declare -A MYQOS # a dict of account qos associations
+
+  IFS=$'\n'
+  for X in ${MYACCQOS}; do
+    Y="$(echo "$X" | xargs)"
+    Z=${Y%% *}
+    MYACC+="${Z} "
+    MYQOS[$Z]="${Y#* }"
+  done
+  unset IFS
+  
+  # default partition is retrieved in slurmParsePartition
+  DEFPART=""
+  IFS=$'\n'
+  for X in ${ALLPARTS}; do
+    if slurmCheckPartition "${X}" "${MYACC}"; then
+      MYPARTS+="${pt_PartitionName} "
+    fi
+  done
+  unset IFS 
+
+  #echo "MY ALLOWED PARTITIONS: ${MYPARTS}" 
+
+  if htyInList "${DEFPART}XX" "${MYPARTS}"; then
+    # you have access to default partion 
+    # Set it to requested pertition and parse again
+    RPART="${DEFPART}"
+    slurmCheckPartition "${RPART}"
+  else
+    # prompt for different partion
+    #slurmSelectPartition "${MYPARTS}"
+    echo "MY ALLOWED PARTITIONS: ${MYPARTS}"
+  fi
+
+  # read config of default partition and assign a pt_ var for each value
+#  DEFPARTCFG=$(scontrol show partition --oneliner | grep Default=YES)
+#  for C in ${DEFPARTCFG}; do 
+#    eval pt_"${C%%=*}"="${C#*=}"
+#  done
+#  DEFPART="${pt_PartitionName}"
+ 
+  #pt_PartitionName="exacloud"
+  #pt_MaxNodes="12"
+  #pt_MaxTime="1-12:00:00"
+  #pt_DenyQos="gpu_long_jobs"
+  #pt_DenyAccounts="basic"
+  #pt_QoS="N/A"
+  #pt_AllowGroups="accessexacloud"
+
+  # ### get my account and QOS info from Slurm 
+#  MYACCQOS=$(sacctmgr --noheader show associations \
+#             where user="${ME}"  format=account%25,qos%256)
+#
+#  MYACC='' # a list of my accounts
+#  declare -A MYQOS # a dict of account qos associations 
+#
+#  IFS=$'\n'
+#  for X in ${MYACCQOS}; do
+#    Y="$(echo "$X" | xargs)"
+#    Z=${Y%% *}
+#    MYACC+="${Z} "
+#    MYQOS[$Z]="${Y#* }"
+#  done
+#  unset IFS
+
+
+
+#  # check if account is denied
+#  ACC_ALLOW=0
+#  for X in ${MYACC}; do
+#    if ! htyInCsv "${X}" "${pt_DenyAccounts}"; then 
+#      echo "$X is allowed"
+#      ACC_APPR=1
+#    fi
+#  done
+
+  # check if Group is allowed
+#  GRP_ALLOW=0
+#  IFS=','
+#  for X in ${pt_AllowGroups}; do
+#    if htyInGroup "${X}"; then
+#      echo "$X is allowed"
+#      GRP_ALLOW=1
+#    fi
+#  done
+#  unset IFS
+  
+  #echo "MYACC: ${MYACC}" 
+  #for A in ${MYACC}; do 
+  #  echo "A:$A"
+  #  echo "MYQOS[$A]: ${MYQOS[$A]}"
+  #done
+
+exit
+
+  NODES=$(sinfo --noheader -p "${DEFPART}" -o "%n %c %m")
+  MAXCORES=$(echo "${NODES}" | sort -k2,2nr |
+              head -1 | awk '{print $2}')
+  # Max mem on a high cpu core node
+  MAXCORESMEM=$(echo "${NODES}" | sort -k2,2nr |
+              head -1 | awk '{print $3}')
+  MAXMEM=$(echo "${NODES}" | sort -k3,3nr |
+              head -1 | awk '{print $3}')
+  # Max CPU cores on a high memory node
+  MAXMEMCORES=$(echo "${NODES}" | sort -k3,3nr |
+              head -1 | awk '{print $2}')
+
+
+  htyEcho "$MAXCORES $MAXCORESMEM $MAXMEM $MAXMEMCORES" 0
 
 
 QST=$(cat << EOF
 How many CPU cores would you like to request per
 node or task. The largest node on this cluster 
-has ${MAXCORES} cpu cores. If you are using Array 
-jobs you should select 1 cpu core in most cases.
+has ${MAXCORES} cpu cores. If you are using job 
+arrays you select 1 CPU core in most cases.
 EOF
 )
 
-  htyDialogInputbox "${QST}" "1" "How many CPU cores?"
-
+  htyDialogInputbox "${QST}" "1" "How many CPU cores?" || exit
+  RCORES=${RES}
   
   htyEcho "Cores: ${RES}" 0 
 
 QST=$(cat << EOF
-How much memory (GB) per core are you requesting?
+How much memory per core are you requesting?
 4GB is a fairly typical choice but you can do 
-more or less.
+more or less. NOTE: This is GB per CPU core and
+if you requested 4 cores and 4GB per core you
+will get a node with at least 16GB free memory.
 EOF
 )
 
-  MEMS="1GB 2GB 4GB 8GB 16GB 32GB 64GB 128GB 256GB 512GB"
-  htyDialogMenu "${QST}" "${MEMS}" "4GB" "How much memory per core?"
+  MAXMEMCORE=$((${MAXMEM}/1024/${RCORES}))
+  MEMS=""
+  #echo "MAXMEMCORE: ${MAXMEMCORE}"
+  for G in 1 2 4 8 16 32 64 128 256 384 512 768 1024; do
+    if [[ $G -le ${MAXMEMCORE} ]]; then
+      MEMS+="${G}-GB "      
+    fi
+  done
+  #echo "MEMS: ${MEMS}"
+  htyDialogMenu "${QST}" "${MEMS}" "4-GB" "How much memory per core?" || exit
+  RMEM=${RES%%-*}
 
-  htyEcho "Mem: ${RES}" 0
+  htyEcho "Mem: ${RMEM}" 0
+
+  # if needed: adjust number of req CPUs down to max cpu in large mem node 
+  if [[ ${RCORES} -gt ${MAXMEMCORES} ]]; then
+    if [[ $((${RMEM}*${RCORES})) -gt $((${MAXCORESMEM}/1024)) ]]; then
+QST=$(cat << EOF
+You requested a large amount of memory and a 
+node with sufficient memory does not have as
+many CPU cores as you requested. Your request
+has been reduced from ${RCORES} to ${MAXMEMCORES} CPU cores.
+EOF
+)      
+      dialog --title "Fewer cores!" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+      RCORES=${MAXMEMCORES}
+      #htyEcho "RCORES ADJUSTED: ${RCORES}" 0
+    fi
+  fi
 
 QST=$(cat << EOF
-Please confirm the default partition or 
+How long will your job run [days-hours]? 
+For example, if your job requires 2 days, enter 
+'2-0' and if it requires 3 hours, enter '0-3' but
+if it only needs 15 min, enter '0-0:15'.
+The maximum time for partition "${DEFPART}" 
+is ${pt_MaxTime}. 
+If you enter a longer time you will be prompted
+for a so called QOS which will allow you to run 
+longer but with fewer resources. 
+EOF
+)
+
+  htyDialogInputbox "${QST}" "1-0" "Job run time?" || exit
+  RTIME=${RES}
+  htyEcho "RTIME ${RTIME}" 0
+
+  if [[ $(htySlurmTime2Sec "${RTIME}") -gt \
+        $(htySlurmTime2Sec "${pt_MaxTime}") ]]; then
+
+    LQOS=$(sacctmgr --noheader show qos \
+         format=name%25,maxwall,flags | grep "PartitionTimeLimit")
+    LQOS=${LQOS//PartitionTimeLimit/}
+
+    IFS=$'\n'
+    for X in ${LQOS}; do
+      Y="$(echo "$X" | xargs)"
+      Z="${Y/:00:00/}"
+      TQOSSTR+="${Z/ /[}] "
+    done 
+    unset IFS
+
+    #htyEcho "TQOSSTR ${TQOSSTR}" 0 
+
+QST=$(cat << EOF
+Please select a QOS with a timelimit >= ${RTIME}.
+Longer time limits typically mean that you can 
+run fewer jobs in parallel.
+EOF
+)
+     htyDialogMenu "${QST}" "${TQOSSTR}" "" "Select a QOS" || exit
+     RQOS=${RES%%[*}
+ 
+     htyEcho "RQOS: ${RQOS}" 0
+
+  fi
+
+
+QST=$(cat << EOF
+Would you like to select some advanced settings 
+such as queue/partition, gpu and scratch folders
+in the node ?
 EOF
 )
 
 
-  htyDialogMenu "Please select your partition" "${PARTITIONS}" "" "Confirm the partition"
+  htyDialogMenu "${QST}" "Yes No" "No" "Advanced Settings?"
+  htyEcho "Advanced: ${RES}" 0
 
-  htyEcho "Partition: ${RES}" 0
+  PARTS=$(sinfo --noheader -o "%.25P[%l]" | xargs)
+  PARTS="${PARTS/\*/}"
+  PARTS="${PARTS//:00:00/}"
+  PARTS="${PARTS//-00]/-0]}"
+
+  htyDialogMenu "Please select your partition" "${PARTS}" "${DEFPART}" "Partition"
+  RPART=${RES%%[*}
   
-
-  htyDialogMenu "Please select your QOS" "${QOSLIST}" "default" "Confirm QOS"
-
-
-QST=$(cat << EOF
-Please enter the number of CPU cores you request
-for this job. 
-EOF
-)
+  htyEcho "RPART: ${RPART}" 0  
 
 }
 

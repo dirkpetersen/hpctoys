@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #scriptname=${0##*/}
-unset PYTHONPATH
-unset PYTHONHOME
+#unset PYTHONPATH
+#unset PYTHONHOME
 
-export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
+#export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
 target=$(readlink -f $0)
 lpython ${target}.py $@
 
