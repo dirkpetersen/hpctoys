@@ -32,24 +32,6 @@ fi
 # ****************
 
 
-#  slurmExtractIdleCores() {
-#   # NODES from slurmGetNodeInfo 
-#   # example (A/I/O/T): node-6-15 44 512000 20/24/0/44
-#   # cut last column and then second number from that one
-#   local NEW
-#   IFS=$'\n'
-#   for X in ${NODES}; do
-#     IDLE=$(cut -d"/" -f2 <<< $(cut -d" " -f4 <<< $X))
-#     NEW+=$(echo -e "$(cut -d' ' -f-3 <<< $X) ${IDLE}\n")
-#     #echo "---"
-#     #echo "${IDLE}" 
-#     #echo "${NEW}"  
-#   done
-#   unset IFS 
-#   NODES=${NEW}
-#   echo "${NODES}" 
-#  } 
-
 slurmGetNodeInfo() {
   local GPART="${1}" 
 
