@@ -22,8 +22,11 @@ echoerr() {
   # echo to stderr instead of stdout
   echo -e "$@" 1>&2
 }
-htyInGroup() { [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
+htyInGid() { [[ " $(id -G $2) " == *" $1 "* ]]; }   #is user in group (gidNumber)
+htyInGroup() { [[ " $(id -Gn $2) " == *" $1 "* ]]; }   #is user in group (gid)
 htyInPath() { builtin type -P "$1" &> /dev/null ; }   #is executable in path
+htyInList() { [[ " ${2} " == *" $1 "* ]]; }   #is item in list
+htyInCsv() { [[ ",${2}," == *",$1,"* ]]; }   #is item in comma separated list
 htyMkdir(){
   # htyMkdir "<dir-name>"
   if ! [[ -d "$1" ]]; then
@@ -464,6 +467,42 @@ htyDialogInputbox() {
   done  
 }
 
+htyDialogYesNo() {
+  # wrapper for unix dialog --yesno
+  MSG="${FUNCNAME[0]} <message> [box-title]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local RET; local MYTIT
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  [[ -z $2 ]] && MYTIT="HPC Toys" || MYTIT=$2
+  RES=""
+  RES=$(dialog --backtitle "HPC Toys" \
+	       --title "${MYTIT}" \
+	       --yesno "$1" 0 0 \
+	       3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+	       )
+  RET=$?
+  case $RET in
+     0) 
+        RES="Yes"
+        ;;
+     1) 
+        RES="No"
+        ;;
+     255) 
+        echo "[ESC] key pressed .. exiting."
+        RES=""
+        exit 
+        ;;
+     *)
+       htyDialogError "${RET}" "${RES}"
+       return  ${RET}
+       ;;
+   esac
+}
+
+
+
+
 htyDialogChecklist() {
   # wrapper for unix dialog --checklist
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
@@ -537,6 +576,7 @@ htyDialogMenu() {
 }
 
 ### More dialogs 
+#dialog --yesno "Is it yes or no?" 0 0
 #dialog --pause "This is a 30 second pause" 0 0 30
 #dialog --menu "Choose the option" 12 45 25 1 "apple" 2 "banana" 3 "mango"
 #dialog --radiolist "radiolist" 15 10 10 "apple" 5 'off' 'banana' 2 'off' 'coffee' 3 'off'
@@ -757,6 +797,49 @@ htyRootCheck() {
   return 0
 }
 
+htySlurmTime2Sec() {
+  local STIME="$1"; local DAYS_HOURS; local DAYS
+  local PART_DAYS; local HMS
+  
+  if [[ $STIME == *-* ]]; then
+    IFS='-' read -ra DAYS_HOURS <<< $STIME
+    DAYS=${DAYS_HOURS[0]}
+    PART_DAYS=${DAYS_HOURS[1]}
+  else
+    DAYS=""
+    PART_DAYS=$STIME
+  fi
+  if [[ $PART_DAYS == *:*:* ]]; then
+    IFS=':' read -ra HMS <<< $PART_DAYS
+    H=${HMS[0]}
+    M=${HMS[1]}
+    S=${HMS[2]}
+  elif [[ $PART_DAYS == *:* ]]; then
+    IFS=':' read -ra HMS <<< $PART_DAYS
+    H=0
+    M=${HMS[0]}
+    S=${HMS[1]}
+  else 
+    if [[ -z ${DAYS} ]]; then
+      H=0
+      M=$PART_DAYS
+      S=0
+    else
+      H=$PART_DAYS
+      M=0
+      S=0
+    fi
+  fi
+  [ -z ${DAYS} ] && DAYS=0
+
+  #SECONDS=`echo "((($DAYS*24+$H)*60+$M)*60+$S)" | bc`
+  #echo Time limit: $SECONDS seconds
+  #HOURS=`echo "scale=3;((($DAYS*24+$H)*60+$M)*60+$S)/3600." | bc`
+  #echo Time limit: $HOURS hours
+
+  echo "((($DAYS*24+$H)*60+$M)*60+$S)" | bc
+}
+
 initSpack(){
   # initSpack 
   if [[ -d "${SPACK_ROOT}" ]]; then
@@ -817,7 +900,10 @@ initLpython() {
 # list all functions with "declare -F"
 if [[ -n "${BASH}" ]]; then
   export -f echoerr
+  export -f htyInGid
   export -f htyInGroup
+  export -f htyInList
+  export -f htyInCsv
   export -f htyInPath
   export -f htyMkdir 
   export -f htyEcho
@@ -839,10 +925,12 @@ if [[ -n "${BASH}" ]]; then
   export -f htyDialogInputbox
   export -f htyDialogChecklist
   export -f htyDialogMenu
+  export -f htyDialogYesNo
   export -f htyReadConfigOrDefault
   export -f htyAppendPath
   export -f htyPrependPath
   export -f htyRootCheck
+  export -f htySlurmTime2Sec
   export -f htyInstallSource
   export -f htyDownloadUntarCd
   export -f htyConfigureMakeInstall
@@ -895,7 +983,7 @@ if [[ -n ${SPACK_ROOT} ]]; then
 fi
 
 # Generic Environment variables and PATHs
-if htyInGroup ${GID_SUPERUSERS}; then 
+if htyInGid ${GID_SUPERUSERS}; then 
   htyAppendPath "${GR}/sbin"
 fi
 htyPrependPath "${GR}/bin" 
@@ -904,10 +992,7 @@ htyAppendPath ~/bin
 if [[ -d ${GR}/opt/miniconda ]]; then
   htyAppendPath ${GR}/opt/miniconda/bin
   # get the default python for hpctoys
-  PY=$(ls -t ${GR}/opt/miniconda/bin/python3.?? | head -1)
-  if ! [[ -x ${PY} ]]; then 
-    PY="${GR}/opt/miniconda/bin/python3.9"
-  fi
+  PY=$(ls -t ${GR}/opt/miniconda/bin/python3.?? 2>/dev/null | head -1)
   [[ -x ${PY} ]] && export HTY_PYTHON=$PY
 fi
 

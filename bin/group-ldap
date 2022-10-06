@@ -18,6 +18,9 @@ also check:
            add user and group arguments
 
 Dirk Petersen dipeit@gmail.com 2013
+
+# for compile of ldap.sasl needs #include <lber.h>
+
 """
 
 import site; site.addsitedir('/app/lib/python3.6.8/lib/python3.6/site-packages/')

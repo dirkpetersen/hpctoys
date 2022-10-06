@@ -213,6 +213,8 @@ if ! htyInPath 'keychain'; then
     make keychain
     cp -f ./keychain ${HPCTOYS_ROOT}/bin/keychain
     chmod +x ${HPCTOYS_ROOT}/bin/keychain
+    mkdir -p ~/bin
+    cp -f ${HPCTOYS_ROOT}/bin/keychain ~/bin
   fi
   cd ${CURRDIR}
 fi
@@ -577,7 +579,7 @@ else
 fi
 
 # initialize HPC Toys variables and paths for non-login shell (batch mode)
-htyAddLineToFile ". ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh" ${MYRC}
+htyAddLineToFile "test -d ${HPCTOYS_ROOT} && source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh" ${MYRC}
 
 # replace dark blue color in vim and dir list
 COL=$(dircolors)
