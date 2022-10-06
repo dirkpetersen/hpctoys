@@ -13,7 +13,8 @@ fi
 echoerr " using pip with ${HTY_PYTHON} ..."
 pyver=$(${HTY_PYTHON} -c 'import sys; print(sys.version[:3])')
 
-if [[ ${pyver} < "3.7" ]]; then 
+  
+if [[ ${pyver} != "3.1" && ${pyver} < "3.7" ]]; then 
   echo "${mypy} is version ${pyver}, but we need >= Python 3.7"
 fi
 

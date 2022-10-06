@@ -23,7 +23,7 @@
   "text": ["Submit interactive HPC",
            "job by selecting CPUs, ",
            "memory, etc "],
-  "cmd": "grabnode",
+  "cmd": "hty interactive",
   "url": "https://google.com"
 },
 {

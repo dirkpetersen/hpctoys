@@ -993,9 +993,6 @@ if [[ -d ${GR}/opt/miniconda ]]; then
   htyAppendPath ${GR}/opt/miniconda/bin
   # get the default python for hpctoys
   PY=$(ls -t ${GR}/opt/miniconda/bin/python3.?? 2>/dev/null | head -1)
-  if ! [[ -x ${PY} ]]; then 
-    PY="${GR}/opt/miniconda/bin/python3.9"
-  fi
   [[ -x ${PY} ]] && export HTY_PYTHON=$PY
 fi
 
