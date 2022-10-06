@@ -467,6 +467,42 @@ htyDialogInputbox() {
   done  
 }
 
+htyDialogYesNo() {
+  # wrapper for unix dialog --yesno
+  MSG="${FUNCNAME[0]} <message> [box-title]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local RET; local MYTIT
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  [[ -z $2 ]] && MYTIT="HPC Toys" || MYTIT=$2
+  RES=""
+  RES=$(dialog --backtitle "HPC Toys" \
+	       --title "${MYTIT}" \
+	       --yesno "$1" 0 0 \
+	       3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+	       )
+  RET=$?
+  case $RET in
+     0) 
+        RES="Yes"
+        ;;
+     1) 
+        RES="No"
+        ;;
+     255) 
+        echo "[ESC] key pressed .. exiting."
+        RES=""
+        exit 
+        ;;
+     *)
+       htyDialogError "${RET}" "${RES}"
+       return  ${RET}
+       ;;
+   esac
+}
+
+
+
+
 htyDialogChecklist() {
   # wrapper for unix dialog --checklist
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
@@ -540,6 +576,7 @@ htyDialogMenu() {
 }
 
 ### More dialogs 
+#dialog --yesno "Is it yes or no?" 0 0
 #dialog --pause "This is a 30 second pause" 0 0 30
 #dialog --menu "Choose the option" 12 45 25 1 "apple" 2 "banana" 3 "mango"
 #dialog --radiolist "radiolist" 15 10 10 "apple" 5 'off' 'banana' 2 'off' 'coffee' 3 'off'
@@ -888,6 +925,7 @@ if [[ -n "${BASH}" ]]; then
   export -f htyDialogInputbox
   export -f htyDialogChecklist
   export -f htyDialogMenu
+  export -f htyDialogYesNo
   export -f htyReadConfigOrDefault
   export -f htyAppendPath
   export -f htyPrependPath
