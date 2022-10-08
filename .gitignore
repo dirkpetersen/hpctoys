@@ -4,6 +4,7 @@ etc/hpctoys/
 tmp/
 custom.env
 bin/jq
+bin/gh
 bin/yq
 bin/openssl
 bin/mc

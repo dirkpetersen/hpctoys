@@ -1,0 +1,23 @@
+#! /bin/bash
+
+if [[ -z ${HPCTOYS_ROOT} || -z ${HTY_PYTHON} ]]; then
+  echo "HPCTOYS_ROOT and/or HTY_PYTHON not set, exiting..."
+  exit
+fi
+
+# let's see if we can use the local python if >= 3.6
+if [[ -x /usr/bin/python3 ]]; then 
+  PV=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
+  if [[ $(htyIntVersion "${PV}") -ge $(htyIntVersion "3.6") ]]; then 
+    PD="lib/python"${PV}"/site-packages/rich"
+    if [[ -d "${HPCTOYS_ROOT}/opt/other/${PD}" ]]; then
+      HTY_PYTHON="/usr/bin/python3"
+      export PYTHONUSERBASE="${HPCTOYS_ROOT}/opt/other"     
+    fi
+  fi
+fi
+
+echo " launching HPC Toys menu ..." 
+
+"${HTY_PYTHON}" "${HPCTOYS_ROOT}/lib/hpcmenu/hpcmenu.py"
+
