@@ -2,6 +2,11 @@
 
 #set -x
 
+### required packages on redhat based systems:
+###   gcc-c++ make git
+### required packages on debian based systems: 
+### build-essential git
+
 CURRDIR=$(pwd)
 if [[ -f ${BASH_SOURCE} ]]; then
   cd $(dirname "$(realpath "${BASH_SOURCE}")")
@@ -377,7 +382,25 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
   echo -e "\n *** Installing ${DURL} ...\n"
   curl -OkL ${DURL}
   if [[ -f Miniconda3-latest-Linux-x86_64.sh ]]; then
+    # install to network 
     bash Miniconda3-latest-Linux-x86_64.sh -b -p ${HPCTOYS_ROOT}/opt/miniconda
+    ${HPCTOYS_ROOT}/opt/miniconda/bin/conda update -y python
+    ${HPCTOYS_ROOT}/opt/miniconda/bin/python3 \
+                 -m pip install --upgrade pip
+    ${HPCTOYS_ROOT}/opt/miniconda/bin/python3 \
+                 -m pip install --upgrade \
+                 -r ${HPCTOYS_ROOT}/requirements.txt
+
+    # 2nd install locally called lpython
+    ME=$(whoami)
+    mkdir -p /tmp/${ME}/lpython
+    bash Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/${ME}/lpython
+    /tmp/${ME}/lpython/bin/conda update -y python
+    /tmp/${ME}/lpython/bin/python3 \
+                 -m pip install --upgrade pip
+    /tmp/${ME}/lpython/bin/python3 \
+                 -m pip install --upgrade \
+                 -r ${HPCTOYS_ROOT}/requirements.txt
   else
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" Miniconda"
@@ -553,11 +576,6 @@ idefaults_group() {
     . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
   fi
   
-  # installing group python packages 
-  if ! [[ -x ${HPCTOYS_ROOT}/opt/miniconda/bin/rich ]]; then
-    echoerr "\n * Installing 'Python rich package' ... *\n"   
-    ${HPCTOYS_ROOT}/opt/miniconda/bin/python3 -m pip install rich-cli
-  fi
 }
 
 idefaults_user() {

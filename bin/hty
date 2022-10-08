@@ -59,7 +59,7 @@ EOF
   [ -n "${RGPU}" ] && CMDLINE+="--gres ${RGPU} "
   [ -n "${RDISK}" ] && CMDLINE+="--gres ${RDISK} "
   [ -n "${RFEAT}" ] && CMDLINE+="--constraint ${RFEAT} "
-  htyEcho "executing: srun ${CMDLINE} --pty bash"
+  htyEcho "executing: srun ${CMDLINE} --pty bash\n"
   srun ${CMDLINE} --pty bash
 }
 
@@ -622,16 +622,16 @@ EOF
      slurmSelectGresFeatures
      adjustResources
   fi
-
-   SBATCH="#SBATCH --job-name=MyJob\n"
+   SBATCH="#! /bin/sh\n"
+  SBATCH+="#SBATCH --job-name=MyJob\n"
   SBATCH+="#SBATCH --account=${DEFACCT}\n"
   SBATCH+="#SBATCH --partition=${RPART}\n"
   SBATCH+="#SBATCH --ntasks=1 --nodes=1\n"
   SBATCH+="#SBATCH --cpus-per-task=${RCORES}\n"
   SBATCH+="#SBATCH --mem-per-cpu=${RMEM}\n"
   SBATCH+="#SBATCH --time=${RTIME}\n"
-  SBATCH+="#SBATCH --output=test_%A_%a.out\n"
-  SBATCH+="#SBATCH --error=test_%A_%a.err\n"
+  SBATCH+="#SBATCH --output=MyJob_%A_%a.out\n"
+  SBATCH+="#SBATCH --error=MyJob_%A_%a.err\n"
   SBATCH+="#SBATCH --array=1-1%1\n"
   SBATCH+="#SBATCH --mail-type=FAIL,END\n"
   SBATCH+="#SBATCH --mail-user=test@test.org\n"

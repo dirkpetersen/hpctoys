@@ -993,7 +993,7 @@ if [[ -d ${GR}/opt/miniconda ]]; then
   htyAppendPath ${GR}/opt/miniconda/bin
   # get the default python for hpctoys
   PY=$(ls -t ${GR}/opt/miniconda/bin/python3.?? 2>/dev/null | head -1)
-  [[ -x ${PY} ]] && export HTY_PYTHON=$PY
+  [[ -x ${PY} ]] && export HTY_PYTHON=$PY && export EB_PYTHON=$PY
 fi
 
 # training wheels wait time in seconds. 0 requires confirm
