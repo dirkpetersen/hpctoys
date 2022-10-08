@@ -145,22 +145,6 @@ iother() {
     export ZLIB_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
   fi
 
-  # optionally install readline >= 3.0.0
-  CURRVER=$(pkg-config --silence-errors --modversion readline)
-  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
-    VER="8.1"
-    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
-      echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
-      sleep 1
-      cd ${INTMP}
-      DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
-      if ! htyInstallSource "${DURL}" "opt/other"; then
-        htyEcho "Error in htyInstallSource ${DURL}"
-      fi
-    fi
-    export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
-    export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
-  fi
 }
 
 
@@ -450,8 +434,28 @@ fi
 
 # a special Python for a user group that is optimzed and locally cached. 
 ilpython() {
-VER="3.10.5"
-VER_B="" # beta ver such as b1, b2 or b3
+
+  # optionally install readline >= 3.0.0
+  CURRVER=$(pkg-config --silence-errors --modversion readline)
+  if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
+    VER="8.1"
+    if [[ ! -f ${HPCTOYS_ROOT}/opt/other/lib/libreadline.a ]]; then
+      echoerr "\n * Installing 'readline for python' ${VER} ... *\n"
+      sleep 1
+      cd ${INTMP}
+      DURL="https://ftp.gnu.org/gnu/readline/readline-${VER}.tar.gz"
+      if ! htyInstallSource "${DURL}" "opt/other"; then
+        htyEcho "Error in htyInstallSource ${DURL}"
+      fi
+    fi
+    export READLINE_LIBS="-L${HPCTOYS_ROOT}/opt/other/lib -lreadline"
+    export READLINE_CFLAGS="-I${HPCTOYS_ROOT}/opt/other/include"
+  fi
+
+
+VER="3.11.0"
+VER_B="rc2" beta or rc ver such as b1, b2 or b3
+
 cd ${INTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
   echoerr "\n * Installing 'lpython' ${VER}${VER_B} ... *\n"
