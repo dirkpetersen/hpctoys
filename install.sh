@@ -575,7 +575,20 @@ idefaults_group() {
     fi
     . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
   fi
-  
+
+  # install rich packages for system Python>=3.6 and hpcmenu if available
+  P1=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
+  if [[ $(htyIntVersion "${P}") -ge $(htyIntVersion "3.6") ]]; then
+    P2=$(/usr/bin/python3 -c 'import pip; print(pip.__version__)' 2>/dev/null)
+    if [[ -n "${P2}" ]]; then 
+      OLDUB="${PYTHONUSERBASE}" 
+      export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/other
+      /usr/bin/python3 -m pip install --upgrade --user pip
+      /usr/bin/python3 -m pip install --user rich==12.6.0
+      /usr/bin/python3 -m pip install --user rich-cli==1.8.0
+      export PYTHONUSERBASE="${OLDUB}"
+    fi
+  fi
 }
 
 idefaults_user() {
