@@ -578,7 +578,7 @@ idefaults_group() {
 
   # install rich packages for system Python>=3.6 and hpcmenu if available
   P1=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
-  if [[ $(htyIntVersion "${P}") -ge $(htyIntVersion "3.6") ]]; then
+  if [[ $(htyIntVersion "${P1}") -ge $(htyIntVersion "3.6") ]]; then
     P2=$(/usr/bin/python3 -c 'import pip; print(pip.__version__)' 2>/dev/null)
     if [[ -n "${P2}" ]]; then 
       OLDUB="${PYTHONUSERBASE}" 
