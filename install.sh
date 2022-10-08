@@ -580,15 +580,17 @@ idefaults_group() {
   P1=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
   if [[ $(htyIntVersion "${P1}") -ge $(htyIntVersion "3.6") ]]; then
     P2=$(/usr/bin/python3 -c 'import pip; print(pip.__version__)' 2>/dev/null)
-    if [[ -n "${P2}" ]]; then 
-      OLDUB="${PYTHONUSERBASE}" 
+    if [[ -n "${P2}" ]]; then
+      OLDUB="${PYTHONUSERBASE}"
       export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/other
+      MYWARN="--no-warn-script-location"
       /usr/bin/python3 -m pip install --upgrade --user pip
-      /usr/bin/python3 -m pip install --user rich==12.6.0
-      /usr/bin/python3 -m pip install --user rich-cli==1.8.0
+      /usr/bin/python3 -m pip install ${MYWARN} --user rich==12.6.0
+      /usr/bin/python3 -m pip install ${MYWARN} --user rich-cli==1.2.2
       export PYTHONUSERBASE="${OLDUB}"
     fi
   fi
+
 }
 
 idefaults_user() {
