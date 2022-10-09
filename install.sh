@@ -333,6 +333,43 @@ if ! htyInPath 'mc'; then
 fi
 }
 
+irich() {
+
+  # Install rich tui package for system Python>=3.6 and hpcmenu if available
+  cd ${INTMP}
+  P1=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
+  if [[ $(htyIntVersion "${P1}") -ge $(htyIntVersion "3.6") ]]; then
+    OLDUB="${PYTHONUSERBASE}"
+    export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/other
+    if ! [[ -d ${HPCTOYS_ROOT}/opt/other/lib/python${P1}/site-packages/rich ]]; then
+      MYWARN="--no-warn-script-location"
+      P2=$(/usr/bin/python3 -c 'import pip; print(pip.__version__)' 2>/dev/null)
+      if [[ -n "${P2}" ]]; then
+        /usr/bin/python3 -m pip install --upgrade --user pip
+      else
+        echo "No pip, try bootstrap.pypa.io ..."
+        if [[ "${P1}" == "3.6" ]]; then
+          DURL="https://bootstrap.pypa.io/pip/3.6/get-pip.py"
+        else
+          DURL="https://bootstrap.pypa.io/get-pip.py"
+        fi
+        echoerr "\n * Install ${DURL} ... *\n"
+        cd ${INTMP}
+        curl -OkL ${DURL}
+        if [[ -f get-pip.py ]]; then
+          /usr/bin/python3 ./get-pip.py --no-setuptools --no-wheel ${MYWARN}
+        fi
+      fi
+      /usr/bin/python3 -m pip install ${MYWARN} --user setuptools wheel
+      /usr/bin/python3 -m pip install ${MYWARN} --user rich==12.6.0
+      /usr/bin/python3 -m pip install ${MYWARN} --user rich-cli==1.2.2
+      export PYTHONUSERBASE="${OLDUB}"
+    fi
+  fi
+  cd ${CURRDIR}
+
+}
+
 # Rclone 
 irclone() {
 if ! [[ -d "${HPCTOYS_ROOT}/opt/rclone" ]]; then
@@ -580,21 +617,6 @@ idefaults_group() {
     . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
   fi
 
-  # install rich packages for system Python>=3.6 and hpcmenu if available
-  P1=$(/usr/bin/python3 -c 'import sys; print(sys.version[:3])')
-  if [[ $(htyIntVersion "${P1}") -ge $(htyIntVersion "3.6") ]]; then
-    P2=$(/usr/bin/python3 -c 'import pip; print(pip.__version__)' 2>/dev/null)
-    if [[ -n "${P2}" ]]; then
-      OLDUB="${PYTHONUSERBASE}"
-      export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/other
-      MYWARN="--no-warn-script-location"
-      /usr/bin/python3 -m pip install --upgrade --user pip
-      /usr/bin/python3 -m pip install ${MYWARN} --user rich==12.6.0
-      /usr/bin/python3 -m pip install ${MYWARN} --user rich-cli==1.2.2
-      export PYTHONUSERBASE="${OLDUB}"
-    fi
-  fi
-
 }
 
 idefaults_user() {
@@ -616,6 +638,7 @@ else
 fi
 
 # initialize HPC Toys variables and paths for non-login shell (batch mode)
+sed -i '/zzz-hpctoys.sh/d' ${MYRC}
 htyAddLineToFile "test -d ${HPCTOYS_ROOT} && source ${HPCTOYS_ROOT}/etc/profile.d/zzz-hpctoys.sh" ${MYRC}
 
 # replace dark blue color in vim and dir list
@@ -701,6 +724,9 @@ fi
 if [[ $(wc -w <<< ${KEYS}) -gt 1 ]]; then
   if htyIsItemInList "id_ed25519.pub" "${KEYS}"; then
     SELKEYS="id_ed25519.pub"
+    if htyIsItemInList "id_rsa.pub" "${KEYS}"; then
+      SELKEYS="id_ed25519.pub id_rsa.pub"
+    fi
   elif htyIsItemInList "id_rsa.pub" "${KEYS}"; then
     SELKEYS="id_rsa.pub"
   fi
@@ -891,6 +917,7 @@ if [[ -z ${SUBCMD} ]]; then
   iyq
   ikeychain
   imc
+  irich
   irclone
   igithub
   # disabling openssl, python and awscli2
@@ -905,7 +932,7 @@ if [[ -z ${SUBCMD} ]]; then
     iquestions_user
   fi
 elif [[ ${SUBCMD} =~ ^(other|jq|yq|keychain|dialog|github|awscli2|openssl|\
-     mc|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
+     mc|rich|rclone|miniconda|lpython|defaults_group|defaults_user|questions_user)$ ]]; then
   i${SUBCMD} "$@"
 else
   echo "Invalid subcommand: ${SUBCMD}" >&2
@@ -918,7 +945,7 @@ if [[ -z ${ERRLIST} ]]; then
   rm -rf ${INTMP}
   echoerr " HPC Toys installed ! "
   echoerr " Please logout/login or run this command:"
-  echoerr " source ${PROF}"
+  echoerr " source ${MYRC}"
   touch ${HPCTOYS_ROOT}/etc/hpctoys/install_success
 else
   echoerr "Errors in these installations: ${ERRLIST}"
