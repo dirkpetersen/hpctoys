@@ -1,19 +1,18 @@
 # HPCToys specific 
-opt/
-etc/hpctoys/
-tmp/
-./tests/
-custom.env
-bin/jq
-bin/gh
-bin/yq
-bin/openssl
-bin/mc
-bin/rclone
-bin/dialog
-bin/aws
-bin/aws_completer
-
+/opt/
+/etc/hpctoys/
+/tmp/
+/tests/
+/custom.env
+/bin/jq
+/bin/gh
+/bin/yq
+/bin/openssl
+/bin/mc
+/bin/rclone
+/bin/dialog
+/bin/aws
+/bin/aws_completer
 
 
 # Byte-compiled / optimized / DLL files
