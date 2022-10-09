@@ -617,6 +617,12 @@ idefaults_group() {
     . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
   fi
 
+  # copy all tests to root folder 
+  if ! [[ -d ${HPCTOYS_ROOT}/tests ]]; then 
+    echo -e "\n Copy all tests to ${HPCTOYS_ROOT}/tests ...\n"
+    cp -r ${HPCTOYS_ROOT}/lib/tests ${HPCTOYS_ROOT}
+  fi
+
 }
 
 idefaults_user() {

@@ -2,6 +2,7 @@
 opt/
 etc/hpctoys/
 tmp/
+tests/
 custom.env
 bin/jq
 bin/gh
