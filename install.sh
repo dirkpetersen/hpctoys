@@ -410,7 +410,7 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
                  -m pip install --upgrade pip
     ${HPCTOYS_ROOT}/opt/miniconda/bin/python3 \
                  -m pip install --upgrade \
-                 -r ${HPCTOYS_ROOT}/requirements.txt
+                 -r ${HPCTOYS_ROOT}/etc/requirements.txt
 
     # 2nd install locally called lpython
     ME=$(whoami)
@@ -421,7 +421,7 @@ if ! [[ -d "${HPCTOYS_ROOT}/opt/miniconda" ]]; then
                  -m pip install --upgrade pip
     /tmp/${ME}/lpython/bin/python3 \
                  -m pip install --upgrade \
-                 -r ${HPCTOYS_ROOT}/requirements.txt
+                 -r ${HPCTOYS_ROOT}/etc/requirements.txt
   else
     echo "unable to download ${DURL}, exiting !"
     ERRLIST+=" Miniconda"
@@ -564,7 +564,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
                -m pip install --upgrade pip
       echo -e "\n *** installing additional packages from requirements.txt ...\n"
       "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" \
-               -m pip install -r ${HPCTOYS_ROOT}/requirements.txt
+               -m pip install -r ${HPCTOYS_ROOT}/etc/requirements.txt
       cd "${TMPDIR}/hpctoys"
       echo -e "\n *** creating archive lpython-${VER}.tar.xz ...\n"
       tar cfvJ lpython-${VER}.tar.xz ./lpython
@@ -574,7 +574,7 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
         mv -vf lpython-${VER}.tar.xz ${HPCTOYS_ROOT}/opt/
         #ln -sf "${TMPDIR}/hpctoys/lpython/bin/python${VER::-2}" "${HPCTOYS_ROOT}/bin/python${VER::-2}"
         ### addional packages in ${HPCTOYS_ROOT}/opt/python
-        lpip install -r ${HPCTOYS_ROOT}/requirements_opt.txt        
+        lpip install -r ${HPCTOYS_ROOT}/etc/requirements_opt.txt        
       else
         echo -e "\n *** There was a problem installing Python ${VER}.\n"
         ERRLIST+=" Python"
