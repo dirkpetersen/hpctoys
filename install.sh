@@ -192,7 +192,7 @@ fi
 
 # Keychain
 ikeychain() {
-if ! htyInPath 'keychain'; then
+if ! [[ -f ~/.local/bin/keychain ]]; then
   VER="2.8.5"
   echoerr "\n * Installing 'keychain' ${VER} ... *\n"
   sleep 1
@@ -202,8 +202,8 @@ if ! htyInPath 'keychain'; then
     make keychain
     cp -f ./keychain ${HPCTOYS_ROOT}/bin/keychain
     chmod +x ${HPCTOYS_ROOT}/bin/keychain
-    mkdir -p ~/bin
-    cp -f ${HPCTOYS_ROOT}/bin/keychain ~/bin
+    mkdir -p ~/.local/bin
+    cp -f ${HPCTOYS_ROOT}/bin/keychain ~/.local/bin
   fi
   cd ${CURRDIR}
 fi
@@ -621,6 +621,17 @@ idefaults_group() {
   if ! [[ -d ${HPCTOYS_ROOT}/tests ]]; then 
     echo -e "\n Copy all tests to ${HPCTOYS_ROOT}/tests ...\n"
     cp -rf ${HPCTOYS_ROOT}/lib/tests ${HPCTOYS_ROOT}
+    T=${HPCTOYS_ROOT}/tests
+    H=$(echo ~) # get true homedir
+    if [[ $T == "$H"* ]]; then
+      T=${T/$H/'~'}
+    fi
+    T1=${T//\//\\\/} # escape all slashes for sed
+    sed -i '/^'"${T1}"'$/d' ~/.config/hpctoys/foldersel
+    if [[ ${#T} -gt 1 ]]; then
+      echo "${T}/code" >> ~/.config/hpctoys/foldersel
+      echo "${T}/csv" >> ~/.config/hpctoys/foldersel
+    fi
   fi
  
   # copy custom env
@@ -728,7 +739,7 @@ SELKEYS=""
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
-  htyAddLineToFile 'eval $(keychain --quiet --eval id_ed25519)' ${PROF}
+  htyAddLineToFile 'eval $(~/bin/keychain --quiet --eval id_ed25519)' ${MYRC}
   KEYS="id_ed25519.pub"
 fi 
 
@@ -762,10 +773,10 @@ echo ${KEYS} > ~/.config/hpctoys/load_sshkeys
 #htyEcho "KEYS3: ${KEYS}" 0
 
 # clean up existing profile from ssh-agent and keychain
-sed -i '/^eval `ssh-agent*/d' ${PROF} 
-sed -i '/^eval $(ssh-agent*/d' ${PROF}
-sed -i '/^eval $(keychain*/d' ${PROF}
-echo "eval \$(keychain --quiet --eval ${KEYS//.pub/})" >> ${PROF}
+sed -i '/^eval `ssh-agent*/d' ${MYRC} 
+sed -i '/^eval $(ssh-agent*/d' ${MYRC}
+sed -i '/^eval .*keychain*/d' ${MYRC}
+echo "eval \$(~/.local/bin/keychain --quiet --eval ${KEYS//.pub/})" >> ${MYRC}
 
 # add each selected key to authorized_keys if not already added
 touch ~/.ssh/authorized_keys

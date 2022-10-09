@@ -382,8 +382,9 @@ htyFolderSel() {
       OPT+=("$2" "")
       [[ -z ${DEF} ]] && DEF="$2"
     fi
+    OPT+=("." "(current dir)")
     OPT+=("/" "(root)")
-    OPT+=("~" "(home)")
+    OPT+=("~" "(home)")   
     M="always use browser"
     if [[ ${MYAW} == "-" ]]; then
       M="browser for / and ~"
