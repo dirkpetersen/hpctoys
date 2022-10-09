@@ -620,8 +620,13 @@ idefaults_group() {
   # copy all tests to root folder 
   if ! [[ -d ${HPCTOYS_ROOT}/tests ]]; then 
     echo -e "\n Copy all tests to ${HPCTOYS_ROOT}/tests ...\n"
-    cp -r ${HPCTOYS_ROOT}/lib/tests ${HPCTOYS_ROOT}
+    cp -rf ${HPCTOYS_ROOT}/lib/tests ${HPCTOYS_ROOT}
   fi
+ 
+  # copy custom env
+  if ! [[ -f ${HPCTOYS_ROOT}/custom.env ]]; then
+    cp -f ${HPCTOYS_ROOT}/etc/custom.env.template ${HPCTOYS_ROOT}/custom.env
+  fi 
 
 }
 
