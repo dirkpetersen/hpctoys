@@ -50,6 +50,7 @@ EOF
   fi 
   buildjob
 
+  echo -e "#! /bin/sh\n"
   echo -e "${SBATCH}"
   echo -e ""  
 
@@ -476,7 +477,7 @@ buildjob() {
   #local RET; local RES; local NODES
   #local PARTS; local WTIMES; local DEFPART
   #local RCORES; local RMEM; local RTIME
-  unset SBATCHHEAD RCORES RMEM RTIME 
+  unset SBATCHHEAD RCORES RMEM RTIME RPART 
 
   # get partitions with configs from Slurm
   ALLPARTS=$(scontrol show partition --oneliner)
@@ -600,17 +601,15 @@ EOF
   adjustQOS
 
 QST=$(cat << EOF
-Would you like to select some advanced settings 
-such as queue/partition, gpu and scratch folders
-in the node ?
+Would you like to continue with standard settings ?
+Choose 'No' if you would like to use GPUs, local 
+Scratch folders on Nodes or special queues/partitions.
 EOF
 )
 
-  # htyDialogMenu "${QST}" "Yes No" "No" "Advanced Settings?"
-  htyDialogYesNo "${QST}" "Advanced Settings?"
-  #htyEcho "Advanced: ${RES}" 0
+  htyDialogYesNo "${QST}" "Continue with Standard Setup?"
 
-  if [[ "${RES}" == "Yes" ]]; then 
+  if [[ "${RES}" == "No" ]]; then 
      T="${RPART}"
      slurmSelectPartition "${MYPARTS}"
      if [[ "${T}" != "${RPART}" ]]; then
@@ -622,24 +621,26 @@ EOF
      slurmSelectGresFeatures
      adjustResources
   fi
-   SBATCH="#! /bin/sh\n"
+  SEMAIL=$(git config --global user.email)
   SBATCH+="#SBATCH --job-name=MyJob\n"
   SBATCH+="#SBATCH --account=${DEFACCT}\n"
   SBATCH+="#SBATCH --partition=${RPART}\n"
-  SBATCH+="#SBATCH --ntasks=1 --nodes=1\n"
+  SBATCH+="#SBATCH --nodes=1 --ntasks=1\n"
   SBATCH+="#SBATCH --cpus-per-task=${RCORES}\n"
   SBATCH+="#SBATCH --mem-per-cpu=${RMEM}\n"
   SBATCH+="#SBATCH --time=${RTIME}\n"
   SBATCH+="#SBATCH --output=MyJob_%A_%a.out\n"
   SBATCH+="#SBATCH --error=MyJob_%A_%a.err\n"
-  SBATCH+="#SBATCH --array=1-1%1\n"
-  SBATCH+="#SBATCH --mail-type=FAIL,END\n"
-  SBATCH+="#SBATCH --mail-user=test@test.org\n"
+  SBATCH+="#SBATCH --array=1-1%1                 # %13 = run 13 jobs in parallel\n"
+  SBATCH+="#SBATCH --mail-type=FAIL,END          # or NONE/ALL or BEGIN,FAIL,END\n"
+  SBATCH+="#SBATCH --mail-user=${SEMAIL}\n"
   [ -n "${RQOS}" ] && SBATCH+="#SBATCH --qos=${RQOS}\n"
   [ -n "${RGPU}" ] && SBATCH+="#SBATCH --gres=${RGPU}\n"
   [ -n "${RDISK}" ] && SBATCH+="#SBATCH --gres=${RDISK}\n"
   [ -n "${RFEAT}" ] && SBATCH+="#SBATCH --constraint=${RFEAT}\n"
+  SBATCH=${SBATCH::-2} # strip final new line 
 }
+
 
 longterm(){
   SN=$(tmux list-sessions -F "#S" 2>/dev/null)
@@ -702,7 +703,6 @@ arrayjob() {
   #MSG="${FUNCNAME[0]} <binary> <script>"
   #[[ -z $1 ]] && echo ${MSG} && return 1
   MYBIN=$1;  MYSHEBANG=""; RES=""
-  MYJOBARR="${ME}-job-arr1"; 
   [[ $1 == "R" ]] && MYBIN="Rscript"
   [[ $1 == "python" ]] && MYBIN="python3"
 QST=$(cat << EOF
@@ -721,7 +721,7 @@ for your job array. You will use it to track
 progress with your compute jobs.
 EOF
 ) 
-  MYJOBARR=$(htyReadConfigOrDefault "lastjobarray" "${ME}-job-arr0")
+  MYJOBARR=$(htyReadConfigOrDefault "lastjobarray" "${ME}-jobs-0")
   MYJOBARR=$(htyIncrementTrailingNumber "${MYJOBARR}")	   
   htyDialogInputbox "${QST}" \
       "${MYJOBARR}" "Job Array Name" \
@@ -747,7 +747,7 @@ on Github later.
 
 Enter a project folder name or leave blank to
 select an existing folder with the folder browser
-in th next step.
+in the next step.
 EOF
 )
   RES=""
@@ -882,9 +882,9 @@ EOF
       QST=$(cat << EOF
 "${REPOSFLD}" is empty.
 Please enter a file name that ends with .py or  
-.R! If you do not enter a file extension I will
-create a Slurm submission script with an extension
-.sub.
+.R! If you do not enter a file extension, a Slurm
+submission script with an extension .sub will be 
+created.
 EOF
 )    
     htyDialogInputbox "${QST}" "" \
@@ -894,27 +894,14 @@ EOF
       MYFILE=${MYFILE// /-}
   fi
 
-  touch "${REPOSFLD}/${MYFILE}"
-
-  ## checking if R or Python or Shell 
-
-  MYEXT=${MYFILE##*.}
-  if [[ "${MYEXT}" == "${MYFILE}" ]]; then
-    MYEXT="sub"
-    MYBIN="bash"
-  fi
-  if [[ "${MYEXT,,}" == "r" ]]; then 
-    # converting to lowercase 
-    MYEXT='R'
-    MYBIN="Rscript"
-  elif [[ "${MYEXT,,}" == "py" ]]; then
-    MYEXT='py'    
-    MYBIN='python3'
-  elif [[ "${MYEXT,,}" == "sh" ]]; then
-    MYEXT='sh'
-    MYBIN='sh'
+  if [[ -e "${REPOSFLD}/${MYFILE}" ]]; then
+    X=$(head -c 4 "${REPOSFLD}/${MYFILE}" | tail -c 3)
+    if [[ ${X^^} == "ELF" ]]; then 
+      echo "${MYFILE} is a binary file, only script files supported"
+    fi
   fi
 
+    
   #### Select data files, one and more folders 
 
   DQST=$(cat << EOF
@@ -931,6 +918,8 @@ Now we need to select the data files you would
 like to run with your script. You can check files
 or simply choose "- all files -" to include all
 files in that folder.
+Selected filenames will be saved to a list called
+${MYJOBARR}-datafiles.txt 
 EOF
 )
 
@@ -952,44 +941,236 @@ EOF
       NOFILES="No files found in Folder ${FLD}.\n"
     fi
     if [[ -z "${FLDEND}" ]] && [[ $N -gt 0 ]]; then
+      IFS=$'\n'
       htyFileSelMulti "${FQST}" "${FLD}" "*" "0" \
 	"- all files -" || FLDEND='yes'
+      unset IFS
+      #htyEcho "${RES}" 0
       if [[ -z "${FLDEND}" ]]; then
 	if [[ "${RES}" =~ "- all files -" ]]; then
 	  readarray -O ${INSRT} -t \
 	         MYDATA < <(htyFilesFull "${FLD}")
 	else
-	  for F in ${RES}; do 
+          eval RESARR=(${RES})
+	  for F in "${RESARR[@]}"; do 
 	    MYDATA+=("${FLD}/${F}")
 	  done
 	fi
       fi 
     fi
-    dialog --yesno "${NOFILES}Select more files from other data folders?" 0 0 \
-                   || FLDEND='yes'
+    QST=$(cat << EOF
+End file selection?
+Choose 'No' to select more files 
+from other data folders!
+EOF
+)
+    dialog --yesno "${NOFILES}${QST}" 0 0 \
+                   && FLDEND='yes'
   done
   # write MYDATA array to file
   printf "%s\n" "${MYDATA[@]}" \
         > "${REPOSFLD}/${MYJOBARR}-datafiles.txt"
- 
 
-  MYSLURM="" # a block with SHEBANG, SBATCH DIRECTIVES
-  #check if the script starts with the right shebang
-  if ! head -n 1 "${REPOSFLD}/${MYFILE}" | \
-                grep -q '^#!.*'"${MYBIN}"'$'; then
-    MYSLURM+="#! /usr/bin/env ${MYBIN}\n"
+# Now building a job and adding a few special Array job options
+
+#  SBATCH+="#SBATCH --job-name=MyJob\n"
+#  SBATCH+="#SBATCH --account=${DEFACCT}\n"
+#  SBATCH+="#SBATCH --partition=${RPART}\n"
+#  SBATCH+="#SBATCH --ntasks=1 --nodes=1\n"
+#  SBATCH+="#SBATCH --cpus-per-task=${RCORES}\n"
+#  SBATCH+="#SBATCH --mem-per-cpu=${RMEM}\n"
+#  SBATCH+="#SBATCH --time=${RTIME}\n"
+#  SBATCH+="#SBATCH --output=MyJob_%A_%a.out\n"
+#  SBATCH+="#SBATCH --error=MyJob_%A_%a.err\n"
+#  SBATCH+="#SBATCH --array=1-1%1\n"  # %X=run 
+#  SBATCH+="#SBATCH --mail-type=FAIL,END  #or NONE/ALL or BEGIN,FAIL,END\n"
+#  SBATCH+="#SBATCH --mail-user=${SEMAIL}\n"
+#  [ -n "${RQOS}" ] && SBATCH+="#SBATCH --qos=${RQOS}\n"
+#  [ -n "${RGPU}" ] && SBATCH+="#SBATCH --gres=${RGPU}\n"
+#  [ -n "${RDISK}" ] && SBATCH+="#SBATCH --gres=${RDISK}\n"
+#  [ -n "${RFEAT}" ] && SBATCH+="#SBATCH --constraint=${RFEAT}\n"
+  
+  # create the sbatch directives 
+  buildjob  
+
+  SBATCH=${SBATCH//MyJob/${MYJOBARR}}
+  #if we have move than 25 data files ask how many jobs 
+  #should be run in parallel. 
+  ARRSIZE=${#MYDATA[@]}
+  PARJOBS="${ARRSIZE}" 
+
+  if [[ "${ARRSIZE}" -gt 25 ]]; then 
+QST=$(cat << EOF
+You have selected ${ARRSIZE} data files. How many
+array jobs would you like to run in parallel? 
+If you share your HPC account with your team 
+members you can reduce the number of jobs that
+you run in parallel to leave more compute 
+capacitly for others.
+EOF
+)
+    htyDialogInputbox "${QST}" \
+        "${ARRSIZE}" "How many Jobs in parallel? " \
+        || return 1
+    PARJOBS="${RES}"   
   fi
 
+  # replace standard array with a larger one
+  SBATCH=${SBATCH/--array=1-1%1/--array=1-${ARRSIZE}%${PARJOBS}} 
+
+  ## checking if R or Python or Shell or other
+
+  MYEXT=${MYFILE##*.}
+  if [[ "${MYEXT}" == "${MYFILE}" ]]; then
+    MYEXT="sub"
+    MYBIN="bash"
+  fi
+  if [[ "${MYEXT,,}" == "r" ]]; then
+    # converting to lowercase
+    MYEXT='R'
+    MYBIN="Rscript"
+  elif [[ "${MYEXT,,}" == "py" ]]; then
+    MYEXT='py'
+    MYBIN='python3'
+  elif [[ "${MYEXT,,}" == "sh" ]]; then
+    MYEXT='sh'
+    MYBIN='sh'
+  fi
+
+ CODEPATH="${REPOSFLD}/${MYFILE}"
+ if ! [[ -e "${CODEPATH}" ]]; then
+   touch "${CODEPATH}"
+ fi
+
+
+  ### Now we are ready to create or modify our submission
+  ### script which has 5 components:
+    # 1. Shebang line (1st line)
+    # 2. #SBATCH directives
+    # 3. import (Python) or library statements (R)
+    # 4. HPC Toys boilerplate code
+    # 5. Actual code
+    #
+    # Most scripts will have 3. and 5. and many
+    # will have 1. so this tool will optionally
+    # insert 1., 2. and 4. if it does not exist.
+    # It will replace 2. each time 
+    #
+  ### If code file MYFILE is a linux ELF binary
+    # we will create a new submission script ${MYJOBARR}.sh
+    # and ask the user  if create it in a different location
+
   #check if the script starts with the right shebang
-  #if ! head -n 1 "$2" | grep -q '^#!.*'"${MYBIN}"'$'; then
-  #  SHEBANG="#! /usr/bin/env ${MYBIN}"
-  #fi
+  SHEBANG=$(head -n 1 "${CODEPATH}" | \
+            grep '^#!.*'"${MYBIN}"'$')
+  #if ! head -n 1 "${CODEPATH}" | \
+  #          grep -q '^#!.*'"${MYBIN}"'$'; then
+  if [[ -z "${SHEBANG}" ]]; then      
+    SHEBANG="#! /usr/bin/env ${MYBIN}"
+  fi
+  
+  # copy actual code to tmp file removing Shebang & SBATCH  
+  grep -v '^#!\|^#SBATCH ' "${CODEPATH}" > \
+                           "${CODEPATH}.tmp"
+  if grep -q '^##### Begin HPC Toys' "${CODEPATH}"; then
+    # file has previously been edited by HPC Toys, rewrite 
+    echo -e "${SHEBANG}\n${SBATCH}" > "${CODEPATH}"
+    cat "${CODEPATH}.tmp" >> "${CODEPATH}"
+  else
+    # get R, Python & shell snips
+    codesnips
+    if [[ ${MYEXT} == "R" ]]; then
+      IMPORTS=$(grep '^library(' "${CODEPATH}")
+      grep -v '^library(' "${CODEPATH}.tmp" \
+                 > "${CODEPATH}.tmp.R"
+      echo -e "${SHEBANG}\n${SBATCH}" > "${CODEPATH}"
+      [[ -n "${IMPORTS}" ]] && echo -e "${IMPORTS}" >> "${CODEPATH}"
+      echo "${SNIP_R}" >> "${CODEPATH}"
+      cat "${CODEPATH}.tmp.R" >> "${CODEPATH}"
+      rm -f "${CODEPATH}.tmp.R"
+    elif  [[ ${MYEXT} == "py" ]]; then
+      IMPORTS=$(grep "'^import \|^from .* import'" "${CODEPATH}")
+      grep -v '^import \|^from .* import' "${CODEPATH}.tmp" \
+                 > "${CODEPATH}.tmp.py"
+      echo -e "${SHEBANG}\n${SBATCH}" > "${CODEPATH}"
+      [[ -n "${IMPORTS}" ]] && echo -e "${IMPORTS}" >> "${CODEPATH}"
+      echo "${SNIP_PY}" >> "${CODEPATH}"
+      cat "${CODEPATH}.tmp.py" >> "${CODEPATH}"
+      rm -f "${CODEPATH}.tmp.py"
+    else
+       echo "other Method"
+    fi
+  fi
+
+  rm -f "${CODEPATH}.tmp"
+  chmod +x "${CODEPATH}"
+
+  #cat "${CODEPATH}" 
+
+  htyEcho "\nTo test the first array job you can simply run:"
+  htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}-datafiles.txt\""
+      
+
+  htyEcho "\nTo execute the entire job array execute this command:"
+  htyEcho "sbatch \"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}-datafiles.txt\""
+
+
+
+}
+
+codesnips() {
+
+ SNIP_PY=$(cat << EOOF
+##### Begin HPC Toys ##########
+# Read the N-th line from a pointers file
+# (ptsfile .e.g -datafiles.txt) that contains a
+# list of file names of data files being processed.
+# N = tid = SLURM_ARRAY_TASK_ID
+import sys,os
+# a function to retrieve the data file 
+def getDataFile():
+  if len(sys.argv)-1 == 0:
+    print("Enter a file name of a pointers file as last argument")
+    return ""
+  ptsfile = sys.argv[-1]
+  if not os.path.exists(ptsfile):
+    print("Pointers file %s does not exist." % ptsfile)
+    return ""
+  with open(ptsfile, "r") as fh:
+    tid = os.environ.get("SLURM_ARRAY_TASK_ID")
+    if not tid:
+      tid = "1"
+    dtfiles = fh.readlines()
+  if len(dtfiles) < int(tid):
+    print("Task ID larger than number of data files")
+    return ""
+  datafile=dtfiles[int(tid)].strip()
+  if not os.path.exists(datafile):
+    print("Data file %s does not exist." % datafile)
+    return ""
+  return datafile
+
+# using the datafile in your code  
+dtfile = getDataFile()
+if not dtfile:
+  sys.exit()
+print ("Data File: ", dtfile)
+with open(dtfile, "r") as fh:
+  print ("1st 3 lines of Data File:")
+  i=0
+  for line in fh:
+    i+=1
+    if i <= 3:
+      print (line.strip())
+##### End HPC Toys ##########
+EOOF
+)
 
  SNIP_R=$(cat << EOF
 ##### Begin HPC Toys ##########
 # Read the N-th line from a pointers file
-# (ptsfile) that contains a list of file
-# names of data files being processed.
+# (ptsfile .e.g *-datafiles.txt) that contains a
+# list of file names of data files being processed.
 # N = tid = SLURM_ARRAY_TASK_ID
 args <- commandArgs(TRUE)
 if (length(args) == 0) {
@@ -1010,13 +1191,21 @@ dtfile <- dtfiles[strtoi(tid)]
 close(fh)
 cat ("Data File: ", dtfile,'\n')
 fh <- file(dtfile, "r")
-cat ("1st line of File:\n",readLines(fh,n=1),'\n')
+lines <-readLines(fh)
 close(fh)
+cat ("Read 1st 3 lines:\n")
+for (i in 1:length(lines)){
+  cat(lines[i],'\n')
+  if (i >= 3) {
+    break
+  }
+}
 ##### End HPC Toys ##########
 EOF
 )
 
 }
+
 
 spinner() {
   htySpinner "$!"

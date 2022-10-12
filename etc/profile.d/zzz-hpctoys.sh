@@ -201,7 +201,7 @@ htyIncrementTrailingNumber() {
     printf "${BASE}${LASTINT}"
     return 0
   else
-    printf "${1}"
+    printf "${1}-1"
   fi
   return 0
 }
@@ -309,7 +309,7 @@ htyFileSel() {
   # will display unicode strangely, e.g Umlaut-ä-ü-ö-ß-Code.py
   MSG="${FUNCNAME[0]} <message> <folder> [file-or-wildcard] [max-entries] [default-entry]"
   [[ -z $2 ]] && echo ${MSG} && return 1
-  local RET=""; local DEF="" ; local MAXENT=0
+  local RET=""; local DEF="" ; local MAXENT=0; local OUTOPT
   local OPT=(); local MYFILES; local DIALOGRC
   export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
   # make array from last 25 lines in reverse order
@@ -320,9 +320,12 @@ htyFileSel() {
   i=0
   DEF=$5
   ONOFF="off"
+  #OUTOPT=" --separate-output"
+  #OUTOPT=""
   if [[ -z ${DIALOGTYPEX} ]]; then
     DIALOGTYPEX="--menu"
     ONOFF=""
+    #OUTOPT=""
   fi
   if [[ -n "${DEF}" ]]; then
     HASDEF=""
@@ -346,6 +349,7 @@ htyFileSel() {
     OPT+=("${FIL}" "" ${ONOFF})
   done
   while [[ "$RES" == "" ]]; do
+    IFS=$'\n'
     RES=$(dialog --backtitle "HPC Toys" \
                  --title "HPC Toys" \
                  --default-item "${DEF}" \

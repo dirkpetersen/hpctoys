@@ -110,6 +110,7 @@ def c_main(stdscr):
         line = 0
         offset = max(0, curidx - curses.LINES + 3)
         for data, depth in mydir.traverse():
+            #print('data: %s' % data.name)
             if line == curidx:
                 stdscr.attrset(curses.color_pair(1) | curses.A_BOLD)
                 if pending_action:
@@ -117,7 +118,7 @@ def c_main(stdscr):
                     pending_action = None
                 elif pending_save:
                     global result
-                    result = data.name
+                    result = data.name                    
                     return
             else:
                 stdscr.attrset(curses.color_pair(0))
