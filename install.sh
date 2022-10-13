@@ -739,7 +739,7 @@ SELKEYS=""
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
-  htyAddLineToFile 'eval $(~/bin/keychain --quiet --eval id_ed25519)' ${MYRC}
+  htyAddLineToFile 'eval $(~/.local/bin/keychain --quiet --eval id_ed25519)' ${PROF}
   KEYS="id_ed25519.pub"
 fi 
 
@@ -773,10 +773,12 @@ echo ${KEYS} > ~/.config/hpctoys/load_sshkeys
 #htyEcho "KEYS3: ${KEYS}" 0
 
 # clean up existing profile from ssh-agent and keychain
-sed -i '/^eval `ssh-agent*/d' ${MYRC} 
-sed -i '/^eval $(ssh-agent*/d' ${MYRC}
+sed -i '/^eval .*ssh-agent*/d' ${MYRC}
 sed -i '/^eval .*keychain*/d' ${MYRC}
-echo "eval \$(~/.local/bin/keychain --quiet --eval ${KEYS//.pub/})" >> ${MYRC}
+sed -i '/^eval .*ssh-agent*/d' ${PROF}
+sed -i '/^eval .*keychain*/d' ${PROF}
+
+echo "eval \$(~/.local/bin/keychain --quiet --eval ${KEYS//.pub/})" >> ${PROF}
 
 # add each selected key to authorized_keys if not already added
 touch ~/.ssh/authorized_keys
