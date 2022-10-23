@@ -548,7 +548,7 @@ htyDialogMenu() {
   # wrapper for unix dialog --menu
   #read -n 1 -r -s -p $"\n  $1 $2 $3 Press enter to continue...\n"
   MSG="${FUNCNAME[0]} <message> <list-of-options> <default-option> [box-title]"
-  [[ -z $2 ]] && echo ${MSG} && return 1
+  [[ -z $2 ]] && echo ${MSG} && echo "DialogMessage:" && echo $1 && return 1
   local MYTIT; local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
   [[ -z $4 ]] && MYTIT="HPC Toys" || MYTIT=$4
   OPT=() # options array

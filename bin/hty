@@ -54,8 +54,9 @@ EOF
   echo -e "${SBATCH}"
   echo -e ""  
 
-  CMDLINE="-J '!interactive' -p ${RPART} -A ${DEFACCT} "
-  CMDLINE+="-c ${RCORES} --mem-per-cpu ${RMEM} -t ${RTIME} "
+  CMDLINE="-J '!interactive' -p ${RPART} -t ${RTIME} "
+  CMDLINE+="-c ${RCORES} --mem-per-cpu ${RMEM} "
+  [ -n "${DEFACCT}" ] && CMDLINE+="--account ${DEFACCT} "
   [ -n "${RQOS}" ] && CMDLINE+="--qos ${RQOS} "
   [ -n "${RGPU}" ] && CMDLINE+="--gres ${RGPU} "
   [ -n "${RDISK}" ] && CMDLINE+="--gres ${RDISK} "
@@ -281,6 +282,10 @@ EOF
 
 slurmSelectPartition() {
   local PARTALLOWED="${1}"; local APARTS=""
+  if [[ -z ${PARTALLOWED} ]]; then
+    echo "no partitions passed to slurmSelectPartition()"
+    return
+  fi
   RPART=""
   PARTS=$(sinfo --noheader -o "%.25P[%l]" | xargs)
   PARTS="${PARTS/\*/}"
@@ -298,7 +303,7 @@ slurmSelectPartition() {
     done 
   done
 
-  #htyEcho "APARTS: ${APARTS}"
+  #$htyEcho "APARTS: ${APARTS} PARTALLOWED: ${PARTALLOWED}"
 
 QST=$(cat << EOF
 Please select one of your allowed partitions.
@@ -326,11 +331,15 @@ slurmCheckPartition() {
   for C in ${CPART}; do
     eval pt_"${C%%=*}"="${C#*=}"
     #echo "pt_${C%%=*}=${C#*=}"
+    if [[ "${pt_Default}" == "YES" ]]; then
+      DEFPART="${pt_PartitionName}"
+    fi
   done
-  if [[ "${pt_Default}" == "YES" ]]; then
-    DEFPART="${pt_PartitionName}"  
+  if [[ -z ${ACCTS} ]]; then
+    # accounts are likely not setup, just return
+    return 0
   fi
-  #htyEcho "pt_PartitionName: ${pt_PartitionName}" 0
+  #htyEcho "pt_PartitionName: ${pt_PartitionName} Default:${pt_Default} DEFPART: ${DEFPART}" 0
   
   #echoerr "\n ****** PARTITION: ${pt_PartitionName} *********** "
 
@@ -431,6 +440,7 @@ EOF
       dialog --title "Fewer cores!" \
              --backtitle "HPC Toys" \
              --msgbox "${QST}" 0 0
+
       RCORES=${MAXMEMCORES}
       #htyEcho "RCORES ADJUSTED: ${RCORES}" 0
     fi
@@ -457,16 +467,29 @@ adjustQOS() {
 
     #htyEcho "TQOSSTR ${TQOSSTR}" 0
 
+    if [[ -n ${TQOSSTR} ]]; then 
+
 QST=$(cat << EOF
 Please select a QOS with a timelimit >= ${RTIME}.
 Longer time limits typically mean that you can
 run fewer jobs in parallel.
 EOF
 )
-     htyDialogMenu "${QST}" "${TQOSSTR}" "" "Select a QOS" || exit
-     RQOS=${RES%%[*}
+       htyDialogMenu "${QST}" "${TQOSSTR}" "" "Select a QOS" || exit
+       RQOS=${RES%%[*}
 
-     #htyEcho "RQOS: ${RQOS}" 0
+       #htyEcho "RQOS: ${RQOS}" 0
+     else
+
+QST=$(cat << EOF
+No other QOS are configured, falling back to defaults
+EOF
+)
+       dialog --title "No QOS available" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+
+     fi
 
   fi
 
@@ -549,6 +572,21 @@ EOF
   htyDialogInputbox "${QST}" "1" \
       "How many CPU cores? (${MAXIDLECORES})" || exit
   RCORES=${RES}
+
+  if [[ ${RCORES} -gt ${MAXCORES} ]]; then  
+
+QST=$(cat << EOF
+You requested more cores than the largest 
+machine has available. Please start again 
+and request not more than ${MAXCORES} cores.
+EOF
+)
+    dialog --title "Fewer cores!" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+    
+    exit
+  fi
   
   #htyEcho "Cores: ${RES}" 0 
 
@@ -621,9 +659,14 @@ EOF
      slurmSelectGresFeatures
      adjustResources
   fi
-  SEMAIL=$(git config --global user.email)
+  SEMAIL='name@org.edu'
+  if htyInPath git; then
+    SEMAIL=$(git config --global user.email)
+  fi
   SBATCH+="#SBATCH --job-name=MyJob\n"
-  SBATCH+="#SBATCH --account=${DEFACCT}\n"
+  if [[ -n ${DEFACCT} ]]; then 
+    SBATCH+="#SBATCH --account=${DEFACCT}\n"
+  fi
   SBATCH+="#SBATCH --partition=${RPART}\n"
   SBATCH+="#SBATCH --nodes=1 --ntasks=1\n"
   SBATCH+="#SBATCH --cpus-per-task=${RCORES}\n"
@@ -655,7 +698,11 @@ can detach from the terminal instead of exiting.
 Run: tmux new-session -s ${ME}1
 EOF
 )
-    dialog --msgbox  "${QST}" 0 0  
+
+    dialog --title "CTRL+B D to detach" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+
     clear
     htyEcho "Run: tmux new-session -s \"${ME}1\"" ${TWW}
     tmux new-session -s "${ME}1"
@@ -930,8 +977,15 @@ EOF
                || FLDEND='yes'
     eval FLD="${RES}"
     if [[ "${FLD}" == "${REPOSFLD}" ]]; then 
-      dialog --msgbox \
-        "Data and Code folders need to be separate" 0 0 
+
+QST=$(cat << EOF
+Data and Code folders need to be separate
+EOF
+)
+      dialog --title "Separate folders !" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+
       continue 
     fi 
     NOFILES=""
