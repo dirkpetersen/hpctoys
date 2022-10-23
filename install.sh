@@ -738,8 +738,7 @@ SELKEYS=""
 [[ "${KEYS}" == "id_ecdsa.pub" ]] && KEYS="" # don't use Bright CM key
 if [[ -z ${KEYS} ]]; then
   dialog --msgbox  "${QST}" 0 0
-  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
-  htyAddLineToFile 'eval $(~/.local/bin/keychain --quiet --eval id_ed25519)' ${PROF}
+  htyAddLineToFile '[ -z $SLURM_PTY_PORT ] && eval $(~/.local/bin/keychain --quiet --eval id_ed25519)' ${PROF}
   KEYS="id_ed25519.pub"
 fi 
 
@@ -778,7 +777,7 @@ sed -i '/^eval .*keychain*/d' ${MYRC}
 sed -i '/^eval .*ssh-agent*/d' ${PROF}
 sed -i '/^eval .*keychain*/d' ${PROF}
 
-echo "eval \$(~/.local/bin/keychain --quiet --eval ${KEYS//.pub/})" >> ${PROF}
+echo '[ -z $SLURM_PTY_PORT ] && eval $(~/.local/bin/keychain --quiet --eval '"${KEYS//.pub/})" >> ${PROF}
 
 # add each selected key to authorized_keys if not already added
 touch ~/.ssh/authorized_keys
