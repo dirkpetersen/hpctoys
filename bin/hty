@@ -4,6 +4,7 @@
 #
 # notes: 
 # Expand with https://starship.rs/
+# Also check https://github.com/fasrc for more tools
 #
 SCR=${0##*/}
 SUBCMD=$1
