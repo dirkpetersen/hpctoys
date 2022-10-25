@@ -629,10 +629,12 @@ idefaults_group() {
       T=${T/$H/'~'}
     fi
     T1=${T//\//\\\/} # escape all slashes for sed
-    sed -i '/^'"${T1}"'$/d' ~/.config/hpctoys/foldersel
-    if [[ ${#T} -gt 1 ]]; then
-      echo "${T}/code" >> ~/.config/hpctoys/foldersel
-      echo "${T}/csv" >> ~/.config/hpctoys/foldersel
+    if ! [[ -e ~/.config/hpctoys/foldersel ]]; then 
+      sed -i '/^'"${T1}"'$/d' ~/.config/hpctoys/foldersel
+      if [[ ${#T} -gt 1 ]]; then
+        echo "${T}/code" >> ~/.config/hpctoys/foldersel
+        echo "${T}/csv" >> ~/.config/hpctoys/foldersel
+      fi
     fi
   fi
  

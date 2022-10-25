@@ -1185,6 +1185,7 @@ EOF
   echo "# You can add more arguments to the script, " >> "${MYSUB}" 
   echo "# for example \"\${datafiles[2]}\" or \"\${datafiles[3]}\"" >> "${MYSUB}"
   echo "\"${CODEPATH}\" \"\${datafiles[1]}\"" >> "${MYSUB}"
+  echo "find . -maxdepth 1 -name '*.err' -size 0 -delete 2>/dev/null" >> "${MYSUB}"
 
   #cat "${CODEPATH}"
 
