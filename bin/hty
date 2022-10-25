@@ -1019,13 +1019,22 @@ Choose 'No' to select more files
 from other data folders!
 EOF
 )
-    dialog --yesno "${NOFILES}${QST}" 0 0 \
+    dialog  --title "Done selecting files ?" \
+            --backtitle "HPC Toys" \
+            --yesno "${NOFILES}${QST}" 0 0 \
                    && FLDEND='yes'
   done
   # write MYDATA array to file
   FILELISTTXT="${REPOSFLD}/${MYJOBARR}.filelist.txt"
   printf "%s\n" "${MYDATA[@]}" > "${FILELISTTXT}"
 
+  # in addition create symlinks for each array
+  mkdir -p "${REPOSFLD}/${MYJOBARR}.filelist"
+  for F in "${MYDATA[@]}"; do 
+    B=$(basename "${F}")
+    ln -s "${F}" "${REPOSFLD}/${MYJOBARR}.filelist/${B}"
+  done
+  
 # Now building a job and adding a few special Array job options
 
 #  SBATCH+="#SBATCH --job-name=MyJob\n"
@@ -1145,7 +1154,7 @@ EOF
       cat "${CODEPATH}.tmp.R" >> "${CODEPATH}"
       rm -f "${CODEPATH}.tmp.R"
     elif  [[ ${MYEXT} == "py" ]]; then
-      IMPORTS=$(grep "'^import \|^from .* import'" "${CODEPATH}")
+      IMPORTS=$(grep '^import \|^from .* import' "${CODEPATH}")
       grep -v '^import \|^from .* import' "${CODEPATH}.tmp" \
                  > "${CODEPATH}.tmp.py"
       echo -e "${SHEBANG}\n${SBATCH}" > "${CODEPATH}"
@@ -1166,18 +1175,18 @@ EOF
     grep '^module load \|^ml ' "${MYSUB}" > "${MYSUB}.tmp"
   fi
   echo -e "#! /bin/bash\n${SBATCH}" > "${MYSUB}"
-  #S="myargs+=(\"${FILELISTTXT}\")"
   echo "${SNIP_BASH//#MOREARGS/myargs+=(\"${FILELISTTXT}\")}" >> "${MYSUB}"
-  echo -e "\n#module load something someohterthing\n" >> "${MYSUB}"
-  cat "${MYSUB}.tmp" >> "${MYSUB}"
-  rm -f "${MYSUB}.tmp"
-  #echo "srun \"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}.filelist.txt\"" \
-  #      >> "${MYSUB}"
+  echo -e "\n#module load something some/ohterthing\n" >> "${MYSUB}"
+  if [[ -e "${MYSUB}.tmp" ]]; then
+    cat "${MYSUB}.tmp" >> "${MYSUB}"
+    rm -f "${MYSUB}.tmp"
+  fi
   
-  echo "You can add more arguments, e.g  \"\${datafiles[2]}\" or \"\${datafiles[3]}\""
+  echo "# You can add more arguments to the script, " >> "${MYSUB}" 
+  echo "# for example \"\${datafiles[2]}\" or \"\${datafiles[3]}\"" >> "${MYSUB}"
   echo "\"${CODEPATH}\" \"\${datafiles[1]}\"" >> "${MYSUB}"
 
-  #cat "${CODEPATH}" 
+  #cat "${CODEPATH}"
 
   htyEcho "\nTo test the first array job you can simply run:"
   htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}.filelist.txt\""
@@ -1221,7 +1230,7 @@ def getDataFiles():
         if len(filelist) < int(tid):
             print("TASK_ID %s larger than number of data files" % tid )
             continue
-        datafile=filelist[int(tid)].strip()
+        datafile=filelist[int(tid)-1].strip()
         if not os.path.exists(datafile):
             print("Data file %s does not exist." % datafile)
             continue
@@ -1233,14 +1242,13 @@ datafiles = getDataFiles()
 if len(datafiles) > 1:
     # start reading with index=1
     for i in range(1,len(datafiles)):
-        print (" *** Python TASK_ID %s: 1st 3 lines of data file: %s" \
-                   % (datafiles[0],datafiles[i]))
+        print (" *** Python TASK_ID %s: 1st 3 lines of %s" % (datafiles[0],datafiles[i]))
         j=0
         with open(datafiles[i], "r") as fh:
             for line in fh:
                 print (line.strip())
                 j+=1
-                if j > 3:
+                if j == 3:
                     break
 ##### End HPC Toys ##########
 EOF
