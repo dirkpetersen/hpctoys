@@ -363,6 +363,8 @@ irich() {
       /usr/bin/python3 -m pip install ${MYWARN} --user setuptools wheel
       /usr/bin/python3 -m pip install ${MYWARN} --user rich==12.6.0
       /usr/bin/python3 -m pip install ${MYWARN} --user rich-cli==1.2.2
+      #other packages could move elsewhere
+      /usr/bin/python3 -m pip install ${MYWARN} --user requests==2.27.1 
       export PYTHONUSERBASE="${OLDUB}"
     fi
   fi

@@ -967,7 +967,7 @@ like to run with your script. You can check files
 or simply choose "- all files -" to include all
 files in that folder.
 Selected filenames will be saved to a list called
-${MYJOBARR}-datafiles.txt 
+${MYJOBARR}.filelist.txt 
 EOF
 )
 
@@ -1023,8 +1023,8 @@ EOF
                    && FLDEND='yes'
   done
   # write MYDATA array to file
-  printf "%s\n" "${MYDATA[@]}" \
-        > "${REPOSFLD}/${MYJOBARR}-datafiles.txt"
+  FILELISTTXT="${REPOSFLD}/${MYJOBARR}.filelist.txt"
+  printf "%s\n" "${MYDATA[@]}" > "${FILELISTTXT}"
 
 # Now building a job and adding a few special Array job options
 
@@ -1123,6 +1123,9 @@ EOF
   if [[ -z "${SHEBANG}" ]]; then      
     SHEBANG="#! /usr/bin/env ${MYBIN}"
   fi
+
+  # get R, Python & shell snips
+  codesnips
   
   # copy actual code to tmp file removing Shebang & SBATCH  
   grep -v '^#!\|^#SBATCH ' "${CODEPATH}" > \
@@ -1132,8 +1135,6 @@ EOF
     echo -e "${SHEBANG}\n${SBATCH}" > "${CODEPATH}"
     cat "${CODEPATH}.tmp" >> "${CODEPATH}"
   else
-    # get R, Python & shell snips
-    codesnips
     if [[ ${MYEXT} == "R" ]]; then
       IMPORTS=$(grep '^library(' "${CODEPATH}")
       grep -v '^library(' "${CODEPATH}.tmp" \
@@ -1152,81 +1153,111 @@ EOF
       echo "${SNIP_PY}" >> "${CODEPATH}"
       cat "${CODEPATH}.tmp.py" >> "${CODEPATH}"
       rm -f "${CODEPATH}.tmp.py"
-    else
-       echo "other Method"
     fi
   fi
-
+  # now write a shell submit script in addition to the above
+  
   rm -f "${CODEPATH}.tmp"
   chmod +x "${CODEPATH}"
+
+  # now write a shell submit script in addition to the above
+  MYSUB="${REPOSFLD}/${MYJOBARR}.sub"
+  if [[ -e "${MYSUB}" ]]; then 
+    grep '^module load \|^ml ' "${MYSUB}" > "${MYSUB}.tmp"
+  fi
+  echo -e "#! /bin/bash\n${SBATCH}" > "${MYSUB}"
+  #S="myargs+=(\"${FILELISTTXT}\")"
+  echo "${SNIP_BASH//#MOREARGS/myargs+=(\"${FILELISTTXT}\")}" >> "${MYSUB}"
+  echo -e "\n#module load something someohterthing\n" >> "${MYSUB}"
+  cat "${MYSUB}.tmp" >> "${MYSUB}"
+  rm -f "${MYSUB}.tmp"
+  #echo "srun \"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}.filelist.txt\"" \
+  #      >> "${MYSUB}"
+  
+  echo "You can add more arguments, e.g  \"\${datafiles[2]}\" or \"\${datafiles[3]}\""
+  echo "\"${CODEPATH}\" \"\${datafiles[1]}\"" >> "${MYSUB}"
 
   #cat "${CODEPATH}" 
 
   htyEcho "\nTo test the first array job you can simply run:"
-  htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}-datafiles.txt\""
+  htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}.filelist.txt\""
       
-
   htyEcho "\nTo execute the entire job array execute this command:"
-  htyEcho "sbatch \"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}-datafiles.txt\""
+  htyEcho "sbatch \"${CODEPATH}\" \"${REPOSFLD}/${MYJOBARR}.filelist.txt\""
 
-
+  htyEcho "\nOr you run the submit script to execute the entire job array"
+  htyEcho "sbatch \"${MYSUB}\""
 
 }
 
 codesnips() {
 
- SNIP_PY=$(cat << EOOF
+ SNIP_PY=$(cat << EOF
+#
 ##### Begin HPC Toys ##########
-# Read the N-th line from a pointers file
-# (ptsfile .e.g -datafiles.txt) that contains a
-# list of file names of data files being processed.
-# N = tid = SLURM_ARRAY_TASK_ID
-import sys,os
-# a function to retrieve the data file 
-def getDataFile():
-  if len(sys.argv)-1 == 0:
-    print("Enter a file name of a pointers file as last argument")
-    return ""
-  ptsfile = sys.argv[-1]
-  if not os.path.exists(ptsfile):
-    print("Pointers file %s does not exist." % ptsfile)
-    return ""
-  with open(ptsfile, "r") as fh:
-    tid = os.environ.get("SLURM_ARRAY_TASK_ID")
-    if not tid:
-      tid = "1"
-    dtfiles = fh.readlines()
-  if len(dtfiles) < int(tid):
-    print("Task ID larger than number of data files")
-    return ""
-  datafile=dtfiles[int(tid)].strip()
-  if not os.path.exists(datafile):
-    print("Data file %s does not exist." % datafile)
-    return ""
-  return datafile
+# read from one or multiple files that are passed 
+# as command line arguments. If the filename ends
+# *.filelist.txt, read from a data file listed in 
+# the Nth line of  *.filelist.txt where 
+# N = SLURM_ARRAY_TASK_ID = tid
+# 
+# a function to retrieve the data files 
+def getDataFiles():
+    import sys,os
+    datafiles=[]
+    if len(sys.argv)-1 == 0:
+        return datafiles
+    tid = os.environ.get("SLURM_ARRAY_TASK_ID","1")
+    # we store task id as first element of datafiles list
+    datafiles.append(tid)
+    for i in range(1, len(sys.argv)):
+        argfile = sys.argv[i]
+        if not os.path.exists(argfile): continue 
+        if not argfile.endswith('.filelist.txt'):
+            datafiles.append(argfile)
+            continue
+        with open(argfile, "r") as fh:
+            filelist = fh.readlines()
+        if len(filelist) < int(tid):
+            print("TASK_ID %s larger than number of data files" % tid )
+            continue
+        datafile=filelist[int(tid)].strip()
+        if not os.path.exists(datafile):
+            print("Data file %s does not exist." % datafile)
+            continue
+        datafiles.append(datafile)
+    return datafiles
 
-# using the datafile in your code  
-dtfile = getDataFile()
-if not dtfile:
-  sys.exit()
-print ("Data File: ", dtfile)
-with open(dtfile, "r") as fh:
-  print ("1st 3 lines of Data File:")
-  i=0
-  for line in fh:
-    i+=1
-    if i <= 3:
-      print (line.strip())
+# using the datafiles list in your code
+datafiles = getDataFiles()
+if len(datafiles) > 1:
+    # start reading with index=1
+    for i in range(1,len(datafiles)):
+        print (" *** Python TASK_ID %s: 1st 3 lines of data file: %s" \
+                   % (datafiles[0],datafiles[i]))
+        j=0
+        with open(datafiles[i], "r") as fh:
+            for line in fh:
+                print (line.strip())
+                j+=1
+                if j > 3:
+                    break
 ##### End HPC Toys ##########
-EOOF
+EOF
 )
 
+
+# Bioc uses 4 spaces: 
+# https://contributions.bioconductor.org/r-code.html#indentation
  SNIP_R=$(cat << EOF
+#
 ##### Begin HPC Toys ##########
-# Read the N-th line from a pointers file
-# (ptsfile .e.g *-datafiles.txt) that contains a
-# list of file names of data files being processed.
-# N = tid = SLURM_ARRAY_TASK_ID
+# read from one or multiple files that are passed
+# as command line arguments. If the filename ends
+# *.filelist.txt, read from a data file listed in
+# the Nth line of  *.filelist.txt where
+# N = SLURM_ARRAY_TASK_ID = tid
+#
 args <- commandArgs(TRUE)
 if (length(args) == 0) {
   stop("enter a file name of a pointers file as last argument")
@@ -1255,6 +1286,60 @@ for (i in 1:length(lines)){
     break
   }
 }
+##### End HPC Toys ##########
+EOF
+)
+
+ SNIP_BASH=$(cat << EOF
+#
+##### Begin HPC Toys ##########
+# read from one or multiple files that are passed
+# as command line arguments. if the filename ends
+# *.filelist.txt, read from a data file listed in
+# the Nth line of  *.filelist.txt where
+# N = SLURM_ARRAY_TASK_ID = tid
+#
+# a function to retrieve the data files
+getDataFiles() {
+  [[ -z "\${myargs[@]}" ]] && return 0
+  tid="\${SLURM_ARRAY_TASK_ID}"
+  [[ -z \${tid} ]] && tid="1"
+  # we store task id as first element of datafiles list
+  datafiles+=("\${tid}")
+  for argfile in "\${myargs[@]}"; do
+    [[ -e "\${argfile}" ]] || continue
+    if ! [[ "\${argfile}" == *".filelist.txt" ]]; then
+      datafiles+=("\${argfile}")
+      continue
+    fi
+    readarray -t filelist < "\${argfile}"
+    if [[ \${#filelist[@]} -lt \${tid} ]]; then
+      echo "TASK_ID \${tid} > no of data files";
+      continue
+    fi
+    ((id=tid-1)); datafile=\${filelist[\${id}]}
+    if ! [[ -e "\${datafile}" ]]; then
+      echo "File "\${datafile}" does not exist"
+      continue
+    fi
+    datafiles+=("\${datafile}")
+  done
+  return 0
+}
+
+# using the datafiles array in your code
+declare -a datafiles myargs
+myargs=( "\$@" )
+#MOREARGS
+getDataFiles
+let numf=\${#datafiles[@]}-1
+if [[ \${numf} -ge 1 ]]; then
+  # start reading with index=1
+  for i in \$(seq 1 \${numf}); do
+    echo "\$i: 1st 3 lines of data file: \${datafiles[\$i]}"
+    head -n 3 "\${datafiles[\$i]}"
+  done
+fi
 ##### End HPC Toys ##########
 EOF
 )
