@@ -28,7 +28,9 @@ if len(sys.argv) < 2:
 
 currdir = os.getcwd()
 active_mods=subprocess.check_output('ml --terse list', shell=True,
-     stderr=subprocess.STDOUT, universal_newlines=True).split()
+     stderr=subprocess.STDOUT, universal_newlines=True).split('\n')
+if active_mods[0]=='No modules loaded':
+   active_mods=[]
 
 appname = sys.argv[1]
 appver =  os.path.basename(currdir)
@@ -56,7 +58,7 @@ with open(luafile, 'w') as f:
     f.write('prepend_path("LIBRARY_PATH", pathJoin(root, "lib"))\n')
     f.write('prepend_path("LD_LIBRARY_PATH", pathJoin(root, "lib"))\n')
 
-print('\n *** Currently loaded modules ***')
+print('\n *** Added currently loaded modules as dependency ***')
 os.system('ml --terse list')
 print('\n Module "%s" version "%s" written to %s' % (appname,appver,luafile))
 print('\n Try running "ml %s" or "ml %s/%s"\n' % (appname,appname,appver))
