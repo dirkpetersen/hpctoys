@@ -951,8 +951,8 @@ MYBASHVER=${BASH_VERSION:0:3}
 if [[ -z ${BASH} ]]; then 
   echoerr " HPC Toys only works with Bash, sorry !"  
   return 1  
-elif [[ "${MYBASHVER/./}" -lt 42 ]]; then
-  echoerr " HPC Toys only works with Bash >= 4.2, sorry !"
+elif [[ "${MYBASHVER/./}" -lt 41 ]]; then
+  echoerr " HPC Toys only works with Bash >= 4.1, sorry !"
   return 1
 fi
 
@@ -994,6 +994,10 @@ fi
 htyPrependPath "${GR}/bin" 
 htyPrependPath ~/.local/bin
 htyAppendPath ~/bin
+if [[ -e /usr/bin/python3 ]]; then 
+  export HTY_PYTHON='/usr/bin/python3'
+fi
+
 if [[ -d ${GR}/opt/miniconda ]]; then
   htyAppendPath ${GR}/opt/miniconda/bin
   # get the default python for hpctoys

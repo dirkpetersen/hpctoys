@@ -651,9 +651,6 @@ idefaults_user() {
 if [[ -f ~/.profile ]]; then
   PROF=~/.profile
   MYRC=~/.bashrc
-  if [[ -f ~/.zshrc ]]; then
-    MYRC=~/.zshrc
-  fi
 elif [[ -f ~/.bash_profile ]]; then
   PROF=~/.bash_profile
   MYRC=~/.bashrc
@@ -681,6 +678,8 @@ if ! [[ -d ~/.config/mc ]]; then
   mkdir -p ~/.config/mc
   echo "[Midnight-Commander]" > ~/.config/mc/ini
   printf "skin=darkfar" >> ~/.config/mc/ini
+else
+  sed -i 's/skin=default/skin=darkfar/g' ~/.config/mc/ini
 fi
 
 # git defaults 

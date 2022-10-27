@@ -39,10 +39,10 @@ def main():
             subprocess.run(cmd,shell=True, check=True)
         except subprocess.CalledProcessError as e:
             print("CalledProcessError:", str(e) )
-            return False
+            #return False
         except Exception as e:
             print("Other Error:", str(e))
-            return False
+            #return False
         #return True  # for debugging 
 
 def get_entry(item):
