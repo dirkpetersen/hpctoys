@@ -27,11 +27,13 @@ def main():
             msg = "Enter lowercase key for  menu choice:"
             sel = Prompt.ask(msg, choices=keys, show_choices=True)
         except KeyboardInterrupt as e:
+            print("")
             return True
         cmd = query_value(myjson, "key", sel, "cmd", icase=True)
         if cmd == 'exit':
           console.print("restart menu with command 'hpctoys' !", style=mystyle)
           return True
+        cmd = cmd.replace("${HPCTOYS_ROOT}",myroot)
 
         console.print("executing '%s' ..." % cmd, style=mystyle)
 

@@ -27,6 +27,15 @@
   "url": "https://google.com"
 },
 {
+  "title": "Show Cluster Jobs ",
+  "key": "W",
+  "text": ["Show the entire list ",
+           "of your running jobs ",
+           "(hit q to quit list) "],
+  "cmd": "hty myjobs",
+  "url": "https://google.com"
+},
+{
   "title": "Tmux Sessions",
   "key": "T",
   "text": ["Create a long running ",
@@ -50,12 +59,12 @@
   "text": ["Re-run setup for install ",
            "and configuration. ",
            "Answer all questions"],
-  "cmd": "${HPCTOYS_ROOT}/install.sh iquestions_user",
+  "cmd": "${HPCTOYS_ROOT}/install.sh",
   "url": "https://google.com"
 },
 {
-  "title": "Exit Menu",
-  "key": "X",
+  "title": "Quit Menu",
+  "key": "Q",
   "text": ["after exiting you can ",
            "run 'hpctoys' to restart ",
            "this hpctoys menu. "],

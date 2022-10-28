@@ -51,9 +51,10 @@ EOF
   fi 
   buildjob
 
-  echo -e "#! /bin/sh\n"
+  htyEcho "You can also paste this at the top of a script:\n" 
+  echo -e "#! /bin/sh"
   echo -e "${SBATCH}"
-  echo -e ""  
+  echo -e "# module load something\n"  
 
   CMDLINE="-J '!interactive' -p ${RPART} -t ${RTIME} "
   CMDLINE+="-c ${RCORES} --mem-per-cpu ${RMEM} "
@@ -331,11 +332,13 @@ slurmCheckPartition() {
 
   for C in ${CPART}; do
     eval pt_"${C%%=*}"="${C#*=}"
-    #echo "pt_${C%%=*}=${C#*=}"
+    echo "pt_${C%%=*}=${C#*=}"
     if [[ "${pt_Default}" == "YES" ]]; then
       DEFPART="${pt_PartitionName}"
+      htyEcho "DEFPART:${DEFPART}" 0
     fi
   done
+  #htyEcho "DEFPART summary:${DEFPART}" 0
   if [[ -z ${ACCTS} ]]; then
     # accounts are likely not setup, just return
     return 0
@@ -665,8 +668,8 @@ EOF
 QST=$(cat << EOF
 How long will your job run [days-hours]? 
 For example, if your job requires 2 days, enter 
-'2-0' and if it requires 3 hours, enter '0-3' but
-if it only needs 15 min, enter '0-0:15'.
+'2-0' and if it wants 3 hours, enter '0-3' but
+if it only needs 15 min, just enter '15'.
 The maximum time for partition "${RPART}" 
 is ${PTMAXTIME[${RPART}]}. 
 If you enter a longer time you will be prompted
@@ -1232,9 +1235,28 @@ EOF
   echo "find . -maxdepth 1 -name '*.err' -size 0 -delete 2>/dev/null" >> "${MYSUB}"
 
   #cat "${CODEPATH}"
+  #Now we want to execute the script  
 
-  
+  QST=$(cat << EOF
+Would you like to start the batch job using 
+the command sbatch "${MYSUB}" now ?
+EOF
+)
+  if dialog  --title "Start Batch Job ?" \
+             --backtitle "HPC Toys" \
+             --yesno "${QST}" 0 0; then
 
+    mkdir -p jobs 
+    cd jobs
+    J=$(sbatch --parsable "${MYSUB}")
+    cd ..
+    JID=${J%;*}
+    QST="Check Files for job id ${JID}"
+    htyFileSel "${QST}" ./jobs 
+    less ./jobs/"${RES}"
+    #htyEcho "${RES}" 0
+  fi
+                  
   htyEcho "\nTo test the first array job you can simply run:"
   htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/filelists/${MYJOBARR}.filelist.txt\""
       
@@ -1313,7 +1335,7 @@ EOF
 # the Nth line of  *.filelist.txt where
 # N = SLURM_ARRAY_TASK_ID = tid
 #
-def getDataFiles <- function() {
+getDataFiles <- function() {
     args <- commandArgs(TRUE)
     datafiles <- character()  #initialize a str vector
     if (length(args) == 0) {
@@ -1329,11 +1351,11 @@ def getDataFiles <- function() {
             next
         }
         if (!endsWith(argfile, ".filelist.txt")){
-            append(datafiles, argfile)
+            datafiles <- append(datafiles, argfile)
             next
         }
         fh <- file(argfile, "r")
-        filelist = <- readLines(fh)
+        filelist <- readLines(fh)
         close(fh)
         if (length(filelist) < strtoi(tid)) {
           cat("Task ID larger than number of data files")
@@ -1344,7 +1366,7 @@ def getDataFiles <- function() {
             cat("Data file does not exist.")
             next
         }
-        append(datafiles,datafile)
+        datafiles <- append(datafiles,datafile)
     }
     return(datafiles)
 }
@@ -1355,14 +1377,10 @@ if (length(datafiles) > 0) {
     # start reading with index=1
     #tid <- Sys.getenv(c("SLURM_ARRAY_TASK_ID"))
     for (i in 1:length(datafiles)){
-        cat (" *** R TASK: 1st 3 lines of ", datafiles[i])
-        j <- 0
-        fh <- file(argfile, "r")
-        for(j in 1:3) {
-            line <- scan(file=fh, nlines=1, quiet=TRUE)
-        }
-        close(fh)      
+        cat (" *** R TASK: 1st 3 lines of ", datafiles[i],'\n')
+        writeLines(readLines(datafiles[i], n=3))
     }
+}
 ##### End HPC Toys ##########
 EOF
 )
@@ -1412,10 +1430,12 @@ getDataFiles
 let numf=\${#datafiles[@]}-1
 if [[ \${numf} -ge 1 ]]; then
   # start reading with index=1
+  echo "*** Printing file from *.sub script:"
   for i in \$(seq 1 \${numf}); do
     echo "\$i: 1st 3 lines of data file: \${datafiles[\$i]}"
     head -n 3 "\${datafiles[\$i]}"
   done
+  echo "*** Printing file from other script:"
 fi
 ##### End HPC Toys ##########
 EOF
@@ -1423,6 +1443,44 @@ EOF
 
 }
 
+myjobs(){
+  squeue -u "${ME}" --format '"%i","%j","%t","%M","%L","%D","%C","%m","%b","%R"' > "${TMPDIR}/${ME}-squeue.csv" # -u "${ME}"
+  H='"JOBID","NAME","ST","TIME","TM-LEFT","ND","CPUS","MEM","TRES","NODELIST(REASON)"'
+  sed -i "1s/.*/${H}/" "${TMPDIR}/${ME}-squeue.csv"
+  LST=$(awk -F',' '{gsub(/"/, "");(NR>1); print $1"+"$2}' "${TMPDIR}/${ME}-squeue.csv")
+  rich --pager --csv "${TMPDIR}/${ME}-squeue.csv"
+
+QST=$(cat << EOF
+If you would like to see more details on 
+your jobs please select one of the job 
+IDs below.
+EOF
+)
+  LST=${LST##*JOBID+NAME}
+  [[ -z "${LST}" ]] && return 0
+  LST1="-Cancel-Jobs-${LST}"
+
+  #htyEcho "${LST1}" 0
+
+  htyDialogMenu "${QST}" "${LST1}" "" "Select Job ID"
+  JID=${RES%%+*}
+  [[ -z "${JID}" ]] && return 0
+  if [[ "${JID}" == "-Cancel-Jobs-" ]]; then 
+QST=$(cat << EOF
+Please select all jobs you 
+would like to cancel !
+EOF
+)
+    htyDialogChecklist "${QST}" "${LST}" "" "Select Job IDs to Cancel"
+    for JID in ${RES}; do 
+       scancel ${JID%%+*}
+    done     
+  else
+    s-jobinfo "${JID}"
+    htyEcho "\n s-jobinfo ${JID}" 0 
+  fi
+
+}
 
 spinner() {
   htySpinner "$!"
@@ -1452,7 +1510,7 @@ args() {
   echo ""
 }
 
-SUBCOMMANDS='longterm|arrayjob|buildjob|interactive|spinner|quiet|help|args'
+SUBCOMMANDS='longterm|arrayjob|interactive|myjobs|spinner|quiet|help|args'
 if [[ ${SUBCMD} =~ ^(${SUBCOMMANDS})$ ]]; then
   ${SUBCMD} "$@"  
 else
