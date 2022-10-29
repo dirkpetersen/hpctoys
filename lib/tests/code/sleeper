@@ -1,0 +1,10 @@
+#! /bin/bash
+
+cmdline=$@
+echo "This script sleeps for 15 min!"
+if [[ -n "${cmdline}" ]]; then 
+  echo " Command line:"
+  echo " "${cmdline}" "
+fi
+sleep 900
+
