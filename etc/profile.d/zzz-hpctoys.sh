@@ -1024,6 +1024,9 @@ initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
 export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules
 export LMOD_MODULERCFILE=${GR}/etc/lmod/rc.lua
 
+# update/create module cache in the background
+(mymodulecache &)
+
 # *** Slurm settings *** 
 # a better format for Slurm's squeue command 
 export SQUEUE_FORMAT="%.18i %.4P %.12j %.8u %.2t %.10M %.10L %.3D %.3C %.9b %.4m %R"

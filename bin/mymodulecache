@@ -1,0 +1,26 @@
+#! /bin/bash
+
+# This is supposed to be spawned of 
+# .bash_profile and will create a cache
+# for modules in tmp
+# lauch this as a quiet background subshell
+# e.g. 
+# (mymodulecache &)
+if [[ -z ${HPCTOYS_ROOT} || -z "${LMOD_CMD}"   ]]; then
+  exit
+fi
+ME=$(whoami)
+MCACHE="${TMPDIR}/${ME}-modules.cache"
+source <({ LERR=$({ LOUT=$(ml --terse avail); } 2>&1; declare -p LOUT >&2); declare -p LERR; } 2>&1)
+if [[ -n "${LOUT}" ]]; then 
+  echo "${LOUT}" | grep -v '^/' > "${MCACHE}"
+else
+  echo "${LERR}" | grep -v '^/' > "${MCACHE}"
+fi
+
+## get the top words
+#tr -sc "[A-Z][a-z][0-9]'" '[\012*]' < "${MCACHE}" | \
+#  tr '[A-Z]' '[a-z]' | \
+#  sort | uniq -c | sort -nr | \
+#  head -n 50 > "${MCACHE}.words"
+
