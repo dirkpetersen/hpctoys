@@ -332,10 +332,10 @@ slurmCheckPartition() {
 
   for C in ${CPART}; do
     eval pt_"${C%%=*}"="${C#*=}"
-    echo "pt_${C%%=*}=${C#*=}"
+    #echo "pt_${C%%=*}=${C#*=}"
     if [[ "${pt_Default}" == "YES" ]]; then
       DEFPART="${pt_PartitionName}"
-      htyEcho "DEFPART:${DEFPART}" 0
+      pt_Default=""
     fi
   done
   #htyEcho "DEFPART summary:${DEFPART}" 0
@@ -641,8 +641,8 @@ QST=$(cat << EOF
 How much memory per core are you requesting?
 4GB is a fairly typical choice but you can do 
 more or less. NOTE: This is GB per CPU core and
-if you requested 4 cores and 4GB per core you
-will get a node with at least 16GB free memory.
+if you request 4 cores and 4GB per core you will
+get a node with at least 16GB free memory.
 EOF
 )
 

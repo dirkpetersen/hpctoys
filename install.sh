@@ -5,7 +5,7 @@
 ### required packages on redhat based systems:
 ###   gcc-c++ make git
 ### required packages on debian based systems: 
-### build-essential git
+###   build-essential git
 
 CURRDIR=$(pwd)
 if [[ -f ${BASH_SOURCE} ]]; then
@@ -493,7 +493,7 @@ ilpython() {
 
 
 VER="3.11.0"
-VER_B="rc2" beta or rc ver such as b1, b2 or b3
+VER_B="" beta or rc ver such as b1, b2, or rc2
 
 cd ${INTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
@@ -775,10 +775,10 @@ echo ${KEYS} > ~/.config/hpctoys/load_sshkeys
 #htyEcho "KEYS3: ${KEYS}" 0
 
 # clean up existing profile from ssh-agent and keychain
-sed -i '/^eval .*ssh-agent*/d' ${MYRC}
-sed -i '/^eval .*keychain*/d' ${MYRC}
-sed -i '/^eval .*ssh-agent*/d' ${PROF}
-sed -i '/^eval .*keychain*/d' ${PROF}
+sed -i '/eval .*ssh-agent*/d' ${MYRC}
+sed -i '/eval .*keychain*/d' ${MYRC}
+sed -i '/eval .*ssh-agent*/d' ${PROF}
+sed -i '/eval .*keychain*/d' ${PROF}
 
 echo '[ -z $SLURM_PTY_PORT ] && eval $(~/.local/bin/keychain --quiet --eval '"${KEYS//.pub/})" >> ${PROF}
 
@@ -947,8 +947,8 @@ if [[ -z ${SUBCMD} ]]; then
   irclone
   igithub
   # disabling openssl, python and awscli2
-  #iopenssl
-  #ilpython
+  iopenssl
+  ilpython
   #iawscli2
   iminiconda
   PATH=${PATH}:${HPCTOYS_ROOT}/bin
