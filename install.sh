@@ -493,7 +493,7 @@ ilpython() {
 
 
 VER="3.11.0"
-VER_B="" beta or rc ver such as b1, b2, or rc2
+VER_B="" #beta or rc ver such as b1, b2, or rc2
 
 cd ${INTMP}
 if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
@@ -724,13 +724,13 @@ dialog --pause "${QST}" 15 50 30
 # #####  Setting up ssh keys 
 QST=$(cat << EOF
 No public SSH keys were found in folder ~/.ssh
-You will now be asked for a passphrase for a new ssh 
-key pair. You will need this for many services such 
-as Github.com and other cloud services. You will not
-have to re-enter this passphrase at login, except  
-after this computer has been restarted. 
-Please do not use your enterprise password NOR ENTER
-AN EMPTY PASSPHRASE UNDER ANY CIRCUMSTANCES.
+Please enter a new passphrase for a new ssh 
+key ~/.ssh/id_ed25519. You will need this for 
+multiple services such as Github.com and cloud.
+You will need to re-enter this passphrase once 
+this computer has been restarted. 
+Please do not use your enterprise password. 
+Note: DO NOT USE EMPTY PASSPHRASES ... EVER !
 EOF
 )
 
@@ -740,7 +740,10 @@ KEYS=$(htyFilesPlain ~/.ssh "*.pub")
 SELKEYS=""
 [[ "${KEYS}" == "id_ecdsa.pub" ]] && KEYS="" # don't use Bright CM key
 if [[ -z ${KEYS} ]]; then
-  dialog --msgbox  "${QST}" 0 0
+  #dialog --msgbox  "${QST}" 0 0
+  RES=""
+  htyDialogPasswordbox "${QST}" "Enter new SSH Passphrase"
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "${RES}"
   htyAddLineToFile '[ -z $SLURM_PTY_PORT ] && eval $(~/.local/bin/keychain --quiet --eval id_ed25519)' ${PROF}
   KEYS="id_ed25519.pub"
 fi 
@@ -947,8 +950,8 @@ if [[ -z ${SUBCMD} ]]; then
   irclone
   igithub
   # disabling openssl, python and awscli2
-  iopenssl
-  ilpython
+  #iopenssl
+  #ilpython
   #iawscli2
   iminiconda
   PATH=${PATH}:${HPCTOYS_ROOT}/bin
