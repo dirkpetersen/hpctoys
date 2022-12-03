@@ -1,6 +1,6 @@
 # hpctoys
 
-dTUI Tools and wrappers that simplify working with IT environments for data intensive science (HPC, containers, virtual machines)
+TUI Tools and wrappers that simplify working with IT environments for data intensive science (HPC, containers, virtual machines)
 
 ## commands in PATH (bin/)
 
