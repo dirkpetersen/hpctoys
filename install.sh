@@ -472,8 +472,9 @@ fi
 
 
 # a special Python for a user group that is optimzed and locally cached. 
-ilpython() {
+ilpython(){
 
+  # this does currently not work as readline does not bind
   # optionally install readline >= 3.0.0
   CURRVER=$(pkg-config --silence-errors --modversion readline)
   if [[ $(htyIntVersion ${CURRVER}) -lt $(htyIntVersion "3.0.0") ]]; then
@@ -552,8 +553,9 @@ if ! [[ -f "${HPCTOYS_ROOT}/opt/lpython-${VER}.tar.xz" ]]; then
     # move PYTHONUSERBASE from ~/.local to a shared location under HPCTOYS_ROOT
     SEA='    return joinuser("~", ".local")'
     REP='    return os.path.join(os.environ.get("HPCTOYS_ROOT", ""), "opt/python")'
-    htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/site.py
-    htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
+    # this does not seem to work as of Python 3.11.0
+    #htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/site.py
+    #htyCommentAndReplaceLineInFile "${SEA}" "${REP}" Lib/sysconfig.py  
     #exit 1
     make -j ${RUNCPUS} 2>&1 | tee make.output
     rm -rf "${TMPDIR}/hpctoys/lpython"
@@ -947,8 +949,8 @@ if [[ -z ${SUBCMD} ]]; then
   irclone
   igithub
   # disabling openssl, python and awscli2
-  iopenssl
-  ilpython
+  #iopenssl
+  #ilpython
   #iawscli2
   iminiconda
   PATH=${PATH}:${HPCTOYS_ROOT}/bin

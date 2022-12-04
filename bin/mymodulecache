@@ -13,9 +13,9 @@ ME=$(whoami)
 MCACHE="${TMPDIR}/${ME}-modules.cache"
 source <({ LERR=$({ LOUT=$(ml --terse avail); } 2>&1; declare -p LOUT >&2); declare -p LERR; } 2>&1)
 if [[ -n "${LOUT}" ]]; then 
-  echo "${LOUT}" | grep -v '^/' > "${MCACHE}"
+  echo "${LOUT}" | sort -r | grep -v '^/' > "${MCACHE}"
 else
-  echo "${LERR}" | grep -v '^/' > "${MCACHE}"
+  echo "${LERR}" | sort -r | grep -v '^/' > "${MCACHE}"
 fi
 
 ## get the top words

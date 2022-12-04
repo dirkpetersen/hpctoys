@@ -307,18 +307,22 @@ htyFileSelMulti() {
 
 htyFileSel() {
   # will display unicode strangely, e.g Umlaut-ä-ü-ö-ß-Code.py
-  MSG="${FUNCNAME[0]} <message> <folder> [file-or-wildcard] [max-entries] [default-entry]"
-  [[ -z $2 ]] && echo ${MSG} && return 1
+  MSG="${FUNCNAME[0]} <message> <existing/folder> [file-or-wildcard] [max-entries] [default-entry]"
+  [[ ! -e $2 ]] && echo ${MSG} && return 1
   local RET=""; local DEF="" ; local MAXENT=0; local OUTOPT
   local OPT=(); local MYFILES; local DIALOGRC
   export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
   # make array from last 25 lines in reverse order
   [[ -n $4 ]] && MAXENT=$4
   readarray -n ${MAXENT} -t MYFILES < <(htyFilesPlain "$2" "$3")
-  OPT=() # options array
   RES=""
-  i=0
   DEF=$5
+  if [[ ${#MYFILES[@]} -eq 0 && -z "${DEF}" ]]; then
+    echoerr "No files matching $2/$3 found." 
+    return 1
+  fi
+  OPT=() # options array
+  i=0
   ONOFF="off"
   #OUTOPT=" --separate-output"
   #OUTOPT=""
@@ -348,7 +352,7 @@ htyFileSel() {
     [[ -z ${DEF} ]] && DEF=${FIL}
     OPT+=("${FIL}" "" ${ONOFF})
   done
-  while [[ "$RES" == "" ]]; do
+  while [[ "${RES}" == "" ]]; do
     IFS=$'\n'
     RES=$(dialog --backtitle "HPC Toys" \
                  --title "HPC Toys" \
@@ -399,10 +403,10 @@ htyFolderSel() {
       OPT+=("${FLD}" "")    
     done
     RES=$(dialog --backtitle "HPC Toys" \
-	       --title "${TITLE} ($M)" \
+               --title "${TITLE} ($M)" \
                --default-item "${DEF}" \
-	       --menu "$1" 0 0 0 "${OPT[@]}" \
-	       3>&2 2>&1 1>&3-  # 2>&1 1>/dev/tty 
+               --menu "$1" 0 0 0 "${OPT[@]}" \
+                      3>&2 2>&1 1>&3-  # 2>&1 1>/dev/tty 
              )
     RET=$?
     OPT=()
@@ -579,6 +583,76 @@ htyDialogMenu() {
   done
   clear
 }
+
+htyModuleSel() {
+  MSG="${FUNCNAME[0]} <message> [default-folder] [title]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local MYCFG=~/.config/hpctoys/modulesel
+  local MYAWCFG=~/.config/hpctoys/foldersel_always
+  local RET=""; local DEF=""; local TITLE=""
+  local OPT=(); local MYFLDS; local DIALOGRC 
+  export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  # make array from last 25 lines in reverse order
+  readarray -n 25 -t MYFLDS < <(tac ${MYCFG})
+  MYAW=$(htyReadConfigOrDefault "${MYAWCFG}" '-')
+  RES='loop'
+  TITLE="Select Folder"
+  [[ -n $3 ]] && TITLE="$3"
+  while [[ "$RES" == "loop" ]]; do
+    if [[ -n $2 ]]; then
+      OPT+=("$2" "")
+      [[ -z ${DEF} ]] && DEF="$2"
+    fi
+    OPT+=("." "(current dir)")
+    OPT+=("/" "(root)")
+    OPT+=("~" "(home)")   
+    M="always use browser"
+    if [[ ${MYAW} == "-" ]]; then
+      M="browser for / and ~"
+    fi 
+    OPT+=("  select always (${MYAW})" "$M")
+    for FLD in "${MYFLDS[@]}"; do 
+      [[ -z ${DEF} ]] && DEF=${FLD}
+      OPT+=("${FLD}" "")    
+    done
+    RES=$(dialog --backtitle "HPC Toys" \
+               --title "${TITLE} ($M)" \
+               --default-item "${DEF}" \
+               --menu "$1" 0 0 0 "${OPT[@]}" \
+                      3>&2 2>&1 1>&3-  # 2>&1 1>/dev/tty 
+             )
+    RET=$?
+    OPT=()
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
+    fi
+    if [[ ${RES} == "  select always"* ]]; then
+      [[ ${MYAW} == "X" ]] && MYAW="-" || MYAW="X"
+      printf "${MYAW}" > ${MYAWCFG}
+      DEF="  select always (${MYAW})"
+      RES="loop"
+    fi
+  done
+  if [[ ${#RES} -eq 1 ]] || [[ ${MYAW} == "X" ]]; then
+    # if single char (/ or ~) or globally enabled
+    eval RES="${RES}" # expand ~
+    RES=$(foldersel "${RES}")
+    H=$(echo ~) # get true homedir
+    if [[ $RES == "$H"* ]]; then
+      RES=${RES/$H/'~'}
+    fi
+  fi
+  RESI=${RES//\//\\\/} # escape all slashes for sed
+  sed -i '/^'"${RESI}"'$/d' ~/.config/hpctoys/foldersel
+  if [[ ${#RES} -gt 1 ]]; then 
+    echo "${RES}" >> ~/.config/hpctoys/foldersel
+  fi
+  #printf "${RES}"
+return 0
+}
+
+
 
 ### More dialogs 
 #dialog --yesno "Is it yes or no?" 0 0
@@ -1022,6 +1096,7 @@ initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
 
 # *** Lmod settings *** 
 export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules
+export MODULEPATH=${MODULEPATH}:/home/exacloud/gscratch/dpcri/app/eb/modules/all
 export LMOD_MODULERCFILE=${GR}/etc/lmod/rc.lua
 
 # update/create module cache in the background
