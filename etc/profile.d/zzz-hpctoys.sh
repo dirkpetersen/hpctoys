@@ -476,6 +476,31 @@ htyDialogInputbox() {
   done  
 }
 
+htyDialogPasswordbox() {
+  # wrapper for unix dialog --inputbox
+  #read -n 1 -r -s -p $"\n $1 $2 $3 Press enter to continue...\n"
+  MSG="${FUNCNAME[0]} <message> [box-title]"
+  [[ -z $1 ]] && echo ${MSG} && return 1
+  local RET; local MYTIT
+  local DIALOGRC && export DIALOGRC=${HPCTOYS_ROOT}/etc/.dialogrc
+  [[ -z $2 ]] && MYTIT="HPC Toys" || MYTIT=$2
+  RES=""
+  while [[ "$RES" == "" ]]; do
+    RES=$(dialog --backtitle "HPC Toys" \
+                 --title "${MYTIT}" \
+                 --clear --insecure \
+                 --passwordbox "$1" 0 0  \
+                 3>&2 2>&1 1>&3-  #2>&1 1>/dev/tty
+                 )
+    RET=$?
+    #echo $RET:$RES && sleep 3
+    if [[ ${RET} -ne 0 ]]; then
+      htyDialogError "${RET}" "${RES}"
+      return ${RET}
+    fi
+  done
+}
+
 htyDialogYesNo() {
   # wrapper for unix dialog --yesno
   MSG="${FUNCNAME[0]} <message> [box-title]"

@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+
+msg="""
+   Python script to create a Connect-Connect tunnel. 
+   For those times ncat/socat can't be put on the box
+   Author: Etienne Stalmans <etienne@sensepost.com>
+   Version: 1.0 (22_01_2015)
+   Usage: pforward <targetIP> <targetPort> <jumpbox> <jumpboxPort>
+          pforward 10.1.1.1 3389 179.0.0.100 8081
+"""
+
+from socket import *
+import sys
+import multiprocessing as mp
+import time 
+
+bufsize = 4096 # Modify to suit your needs
+
+if len(sys.argv) < 5:
+    print(msg)
+    sys.exit(1)
+
+targetHost = sys.argv[1]
+targetPort = int(sys.argv[2])
+listenHost = sys.argv[3]
+listenPort = int(sys.argv[4])
+
+def listener(lsock,rsock):
+    while True:
+            try:
+                data = lsock.recv(bufsize)
+                if data:
+                     forward(rsock,data)
+            except:
+                   continue
+
+def forward(sock,data):
+    sock.sendall(data)
+
+def listen(host, port):
+    listenSocket = socket(AF_INET, SOCK_STREAM)
+    listenSocket.connect((host, port))
+    otherSocket = socket(AF_INET, SOCK_STREAM)
+    otherSocket.connect((targetHost, targetPort))
+    workers = []
+    workers.append(mp.Process(target=listener, args=(listenSocket,otherSocket)))
+    workers.append(mp.Process(target=listener, args=(otherSocket,listenSocket)))
+
+    for p in workers:
+        p.daemon = True
+        p.start()
+    while True:
+          try:
+              time.sleep(10)
+          except:
+              break
+ 
+listen(listenHost,listenPort)
