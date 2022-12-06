@@ -76,13 +76,16 @@ slurmGetNodeInfo() {
   NODES=$(sinfo --noheader -p "${GPART}" -o "%n %c %m %C" |  
           awk -F " " '{ split($4, AR, "/"); print $1" "$2" "$3" "AR[2]}')
 
+  # maximum cpu cores available on any node
   MAXCORES=$(echo "${NODES}" | sort -k2,2nr |
               head -1 | awk '{print $2}')
+  # maximum cpu cores available on any node that are idle right now
   MAXIDLECORES=$(echo "${NODES}" | sort -k4,4nr |
               head -1 | awk '{print $4}') 
   # Max mem on a high cpu core node
   MAXCORESMEM=$(echo "${NODES}" | sort -k2,2nr |
               head -1 | awk '{print $3}')
+  # maximum memory available on any node 
   MAXMEM=$(echo "${NODES}" | sort -k3,3nr |
               head -1 | awk '{print $3}')
   # Max CPU cores on a high memory node
@@ -1079,7 +1082,7 @@ EOF
   mkdir -p "${REPOSFLD}/filelists/${MYJOBARR}.filelist"
   for F in "${MYDATA[@]}"; do 
     B=$(basename "${F}")
-    ln -s "${F}" "${REPOSFLD}/filelists/${MYJOBARR}.filelist/${B}"
+    ln -sfr "${F}" "${REPOSFLD}/filelists/${MYJOBARR}.filelist/${B}"
   done
   
 # Now building a job and adding a few special Array job options
@@ -1238,8 +1241,9 @@ EOF
   #Now we want to execute the script  
 
   QST=$(cat << EOF
-Would you like to start the batch job using 
-the command sbatch "${MYSUB}" now ?
+Would you like to start the batch job 
+using this command now ? :  
+sbatch "${MYSUB}"
 EOF
 )
   if dialog  --title "Start Batch Job ?" \
@@ -1248,24 +1252,99 @@ EOF
 
     mkdir -p jobs 
     cd jobs
-    J=$(sbatch --parsable "${MYSUB}")
+    J=$(sbatch --parsable "${MYSUB}" 2>&1)
+    E=$?
     cd ..
-    JID=${J%;*}
-    QST="Check Files for job id ${JID}"
-    htyFileSel "${QST}" ./jobs 
-    less ./jobs/"${RES}"
+    if [[ $E -gt 0 ]]; then 
+
+QST=$(cat << EOF
+The Job submission failed with error code ${E}.
+Error Message from Slurm:
+${J}
+EOF
+)
+      dialog --title "Error submitting job!" \
+             --backtitle "HPC Toys" \
+             --msgbox "${QST}" 0 0
+
+    else
+      JID=${J%%;*} # could be multiple clusters
+      JID=${JID%%_*} # cloud be job array ?
+      
+      # another way to get status of running job:
+      # squeue -j 20827861 --noheader --format %t      
+      SEL=""
+      TMT=5
+      FLS=""
+      while [[ -z "${FLS}" ]]; do
+        SQ=$(squeue -j "${JID}" --noheader --format "%S;%R")
+        STTIME=${SQ%%;*}
+        REASON=${SQ##*};
+        [[ "${REASON}" == "(None)" ]] && REASON="" 
+        QST=$(cat << EOF
+Waiting ${TMT} sec for start of job ${JID}.
+Expected start time: ${STTIME}
+Hit 'Space' or 'Enter' to skip the wait and
+re-check the ./jobs folder for output files.
+
+Wait increases by 10 sec each loop; select
+cancel to stop waiting. Slurm wait reason:
+
+${REASON}
+EOF
+) 
+        dialog --title "Waiting for output" \
+               --backtitle "HPC Toys" \
+               --pause "${QST}" 20 50 ${TMT}
+        [[ $? -ne 0 ]] && break        
+        FLS=$(htyFilesPlain ./jobs '*'"${JID}"'*')
+        ((TMT+=10))        
+      done 
+
+      QST=$(cat << EOF
+Check output files for job id ${JID}.
+Will run 'less +F <file>' to check progress of 
+output of that job. For other file operations 
+select '- More options -'.
+(Hit 'q' to leave the less tool after exiting
+follow mode with CTRL+C)
+EOF
+)
+      if [[ -n "${FLS}" ]]; then 
+        SEL="" 
+	while [[ -z "${SEL}" ]]; do
+	  if htyFileSel "${QST}" ./jobs '*'"${JID}"'*' "0" "- More options -"; then
+	    SEL="${RES}"
+	    RES=""
+	    if [[ "${SEL}" == "- More options -"  ]]; then 
+	      dialog --title "More Options!" \
+		     --backtitle "HPC Toys" \
+		     --msgbox "This feature is not yet implemented" 0 0
+	     
+	    else
+	      less -N "./jobs/${SEL}"  #+F / --quit-on-intr quits everything
+	    fi
+	    SEL=""
+	  else        
+	    break
+	  fi
+	done
+      fi
+    fi
     #htyEcho "${RES}" 0
+  else
+
+    htyEcho "\nTo test the first array job you can simply run:"
+    htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/filelists/${MYJOBARR}.filelist.txt\""
+
+    htyEcho "\nTo execute the entire job array execute this command:"
+    htyEcho "sbatch \"${CODEPATH}\" \"${REPOSFLD}/filelists/${MYJOBARR}.filelist.txt\""
+
+    htyEcho "\nOr you run the submit script to execute the entire job array"
+    htyEcho "sbatch \"${MYSUB}\"" 0
+
   fi
                   
-  htyEcho "\nTo test the first array job you can simply run:"
-  htyEcho "\"${CODEPATH}\" \"${REPOSFLD}/filelists/${MYJOBARR}.filelist.txt\""
-      
-  htyEcho "\nTo execute the entire job array execute this command:"
-  htyEcho "sbatch \"${CODEPATH}\" \"${REPOSFLD}/filelists/${MYJOBARR}.filelist.txt\""
-
-  htyEcho "\nOr you run the submit script to execute the entire job array"
-  htyEcho "sbatch \"${MYSUB}\"" 0
-
 }
 
 codesnips() {
@@ -1444,11 +1523,21 @@ EOF
 }
 
 myjobs(){
-  squeue -u "${ME}" --format '"%i","%j","%t","%M","%L","%D","%C","%m","%b","%R"' > "${TMPDIR}/${ME}-squeue.csv" # -u "${ME}"
+  squeue  -u "${ME}" --format '"%i","%j","%t","%M","%L","%D","%C","%m","%b","%R"' > "${TMPDIR}/${ME}-squeue.csv" # -u "${ME}"
+  if [[ $(wc -l < "${TMPDIR}/${ME}-squeue.csv") -le 1 ]]; then
+    dialog --title "No Jobs!" \
+           --backtitle "HPC Toys" \
+           --msgbox "You have no Slurm jobs running. Please start a job and try again" 0 0
+    return 0     
+  fi 
   H='"JOBID","NAME","ST","TIME","TM-LEFT","ND","CPUS","MEM","TRES","NODELIST(REASON)"'
   sed -i "1s/.*/${H}/" "${TMPDIR}/${ME}-squeue.csv"
   LST=$(awk -F',' '{gsub(/"/, "");(NR>1); print $1"+"$2}' "${TMPDIR}/${ME}-squeue.csv")
-  rich --pager --csv "${TMPDIR}/${ME}-squeue.csv"
+  htyEcho "Loading jobs ... (Enter q to exit view)"
+  rich --pager \
+       --title "Cluster jobs for ${ME} (Enter q to quit)" \
+       --caption "Enter q to quit" \
+       --csv "${TMPDIR}/${ME}-squeue.csv"
 
 QST=$(cat << EOF
 If you would like to see more details on 
@@ -1464,6 +1553,7 @@ EOF
 
   htyDialogMenu "${QST}" "${LST1}" "" "Select Job ID"
   JID=${RES%%+*}
+  JID=${JID%%_*} # cloud be job array ?
   [[ -z "${JID}" ]] && return 0
   if [[ "${JID}" == "-Cancel-Jobs-" ]]; then 
 QST=$(cat << EOF

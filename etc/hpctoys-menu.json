@@ -28,7 +28,7 @@
 },
 {
   "title": "Show Cluster Jobs ",
-  "key": "W",
+  "key": "S",
   "text": ["Show the entire list ",
            "of your running jobs ",
            "(hit q to quit list) "],
@@ -55,7 +55,7 @@
 },
 {
   "title": "Reconfigure HPC Toys",
-  "key": "S",
+  "key": "C",
   "text": ["Re-run setup for install ",
            "and configuration. ",
            "Answer all questions"],

@@ -3,6 +3,7 @@
 /etc/hpctoys/
 /tmp/
 /tests/
+/jobs/
 /custom.env
 /bin/jq
 /bin/gh
