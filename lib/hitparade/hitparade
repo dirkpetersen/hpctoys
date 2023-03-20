@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ -e /app/bin/hitparade ]]; then
+  /app/bin/hitparade ]]; then
+  exit
+fi
+
 #scriptname=${0##*/}
 #unset PYTHONPATH
 #unset PYTHONHOME

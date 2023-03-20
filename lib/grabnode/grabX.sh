@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ -e /app/bin/grabnode ]]; then
+  /app/bin/grabnode ]]; then
+  exit
+fi
+
 me=$(basename $0)
 shell="bash"
 cpu=0

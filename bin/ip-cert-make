@@ -1,0 +1,51 @@
+#!/bin/bash
+
+if [[ -z $1 ]]; then
+  IP=$(hostname -i)
+  if [[ ${IP} == "127.0.1.1" || ${IP} == "127.0.0.1" ]]; then 
+    IP=$(hostname -I | cut --delimiter " " --fields 1)
+  fi 
+fi
+
+IP=$(echo ${IP} | egrep -o "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$")
+
+if [[ ! $IP ]]; then 
+  echo "Usage: ip-cert-make 127.0.0.1"
+  exit 1
+fi
+
+CNF=$(cat << EOF
+[req]\n
+default_bits  = 2048\n
+distinguished_name = req_distinguished_name\n
+req_extensions = req_ext\n
+x509_extensions = v3_req\n
+prompt = no\n
+\n
+[req_distinguished_name]\n
+countryName = US\n
+stateOrProvinceName = N/A\n
+localityName = N/A\n
+organizationName = Self-signed certificate\n
+commonName = $IP: Self-signed certificate\n
+\n
+[req_ext]\n
+subjectAltName = @alt_names\n
+\n
+[v3_req]\n
+subjectAltName = @alt_names\n
+\n
+[alt_names]\n
+IP.1 = ${IP}\n
+EOF
+)
+
+FLD=~/.config/pki/ip-certs
+mkdir -p ${FLD}
+echo -e ${CNF} > ${FLD}/ip-cert.cnf
+
+openssl req -x509 -nodes -days 730 -newkey rsa:2048 \
+        -keyout ${FLD}/${IP}-key.pem \
+        -out ${FLD}/${IP}-cert.pem \
+        -config ${FLD}/ip-cert.cnf > /dev/null 2>&1
+
