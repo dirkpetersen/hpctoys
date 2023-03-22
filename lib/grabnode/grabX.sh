@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ -e /app/bin/grabnode ]]; then
-  /app/bin/grabnode ]]; then
+  /app/bin/grabnode
   exit
 fi
 
