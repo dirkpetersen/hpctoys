@@ -231,7 +231,7 @@ projectpurge() {
   echo "This will clean out your entire openstack account, including servers, images and networks"
   [[ "$(read -e -p ' Do you REALLY want to continue ? [y/N] '; echo $REPLY)" == [Yy]* ]] || exit
   echo "retrieve floating IPs ..."
-  F_IPS=$(openstack floating ip list -f json | jq -r '.[]."Floating IP Address"')
+  F_IPS=$(openstack floating ip list --status DOWN -f value -c 'Floating IP Address')
   for F in ${F_IPS}; do
     echo " delete floating IP $F ..."
     openstack floating ip delete $F
@@ -243,10 +243,10 @@ projectpurge() {
   done 
   echo "clear router gateway ..."
   openstack router unset os_l3_router --external-gateway
-  echo "delete security group os_standard ..."
-  openstack security group delete os_standard
+  echo "delete security group ${SECGROUP} ..."
+  openstack security group delete ${SECGROUP}
   echo "retrieve ports ..."
-  PORTS=$(osc port list -f json | jq -r .[].ID)
+  PORTS=$(openstack port list -f value -c ID)
   for P in ${PORTS}; do
     echo " delete port $P ..."
     openstack router remove port os_l3_router $P 2>/dev/null 
@@ -261,8 +261,8 @@ projectpurge() {
     echo " deleting private image \"$I\" ..."
     openstack image delete "$I"
   done
-  echo "remove key os_key_$(whoami) ... "
-  openstack keypair delete os_key_$(whoami)
+  echo "remove key key_$(whoami) ... "
+  openstack keypair delete key_$(whoami)
   echo -e "\nAll resources purged from current project !\n"
 }
 
