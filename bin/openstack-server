@@ -2,12 +2,15 @@
 
 # create openstack server and network dependencies
 
-DEFIMAGE="Ubuntu-22.04-LTS"
-DEFIMAGEURL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64-disk-kvm.img"
+DEFIMAGE="Ubuntu-23.04"
+DEFIMAGEURL="https://cloud-images.ubuntu.com/lunar/current/lunar-server-cloudimg-amd64-disk-kvm.img"
 #
 # default settings for command line options
 OPT_f="m1.small"  # --flavor
 OPT_i="${DEFIMAGE}" # --image
+PUBNET="ohsu214" # not public
+INTNET=${OS_PROJECT_NAME}Net
+SECGROUP=${OS_PROJECT_NAME}_grp # not default
 # "Ubuntu 18.04 LTS 20180522" or "CentOS 7 x86_64 1804"
 #
 SCR=${0##*/}
@@ -27,24 +30,21 @@ if [[ -z ${HPCTOYS_ROOT} ]]; then
   exit
 fi
 #export PYTHONUSERBASE=${HPCTOYS_ROOT}/opt/python
-if [[ -f ~/.openstackrc ]]; then
-  . ~/.openstackrc
-else
-  echo -e '\n*****  WARNING: ~/.openstackrc file missing ! *****\n'
-  echo 'Log in to the Openstack Horizon Dashboard. Navigate to Project -> API Access' 
-  echo 'to download the OpenStack RC file. (In older Openstack versions this is in' 
-  echo 'Project -> Compute -> Access & Security -> API Access)'
-  echo 'Save the file in your home as ~/.openstackrc and run "chmod 600 ~/.openstackrc"'
-  echo ''
-  echo 'To avoid a password prompt each time you use openstack you can comment the 2' 
-  echo 'lines containing OS_PASSWORD_INPUT and add a line "export OS_PASSWORD=<password>"'
-  exit
+if [[ -z ${OS_PROJECT_NAME} ]] || [[ -z ${OS_PASSWORD} ]]; then 
+    echo -e '\n*****  WARNING: You have not sourced your Openstack RC file ! *****\n'
+    echo 'Log in to the Openstack Horizon Dashboard. Navigate to Project -> API Access' 
+    echo 'to download the OpenStack RC file. (In older Openstack versions this is in' 
+    echo 'Project -> Compute -> Access & Security -> API Access)'
+    echo 'Save the file in your home as ~/.openstackrc and run "chmod 600 ~/.openstackrc"'
+    echo 'Then run: '
+    echo 'source ~/.openstackrc'
+    exit
 fi
 
-checknet() {
+checkcfg() {
   printf "checking openstack configuration ... "
-  secgroups=$(openstack security group list -f json | jq -r .[].Name) 
-  if [[ "$secgroups" == *"os_standard"* ]]; then
+  secgroups=$(openstack security group list -f value -c Name) 
+  if [[ "$secgroups" == *"${SECGROUP}"* ]]; then
     echo "configured=true"
     return 0 
   else
@@ -65,24 +65,31 @@ cloudinit() {
   echo $TF
 }
 
+
 create() {
   if [[ -z $1 ]]; then
     echo "server name required"
     exit
   fi
-  if ! checknet; then
-    networksetup
+  if ! checkcfg; then
+    secgroupsetup
+    sshkey
+    newimage ${DEFIMAGEURL} ${DEFIMAGE}
   fi
-  sshkey
-  echo "create floating ip address... "
-  PUBIP=$(openstack floating ip create public -f json | jq -r .floating_ip_address)
+  echo "find the first free floating ip address... "
+  PUBIP=$(openstack floating ip list --status DOWN -f value -c 'Floating IP Address' | head -n 1)
+  if [[ -z ${PUBIP} ]]; then 
+    echo "create floating ip address in network ${PUBNET}... "
+    PUBIP=$(openstack floating ip create ${PUBNET} -f value -c floating_ip_address)
+  fi
+
   echo "create server $1 with size $OPT_f and OS $OPT_i ..."
   openstack server create \
               --flavor "${OPT_f}" \
               --image "${OPT_i}" \
-              --security-group os_standard \
-              --network os_tenant_network \
-              --key-name os_key_$(whoami) \
+              --security-group ${SECGROUP} \
+              --network ${INTNET} \
+              --key-name key_$(whoami) \
               --user-data $(cloudinit) \
               $1
   printf "assign floating ip ${PUBIP} to server $1 ... "
@@ -92,7 +99,7 @@ create() {
   echo " ssh centos@${PUBIP}"
   echo " ssh ubuntu@${PUBIP}"
   echo "Execute this command to see console output of server $1:"
-  echo -e " osc console log show $1\n"
+  echo -e " openstack console log show $1\n"
 }
 
 delete() {
@@ -104,7 +111,7 @@ delete() {
   echo "deleting server $1 ... "
   openstack server delete $1
   echo "get unused floating IPs ... "
-  F_IPS=$(openstack floating ip list -f json | jq -r '.[] | select(.Port==null) | ."Floating IP Address"')
+  F_IPS=$(openstack floating ip list --status DOWN -f value -c 'Floating IP Address')
   for F in ${F_IPS}; do
     echo " delete unused floating IP $F ..."
     openstack floating ip delete $F
@@ -154,6 +161,7 @@ nameservers() {
 }
 
 networksetup() {
+  # This should not be required if openstack defaults are well configured
   echo "creating network configuration ... "
   openstack network create os_tenant_network
   echo "creating subnet configuration with DNS ... "
@@ -163,27 +171,28 @@ networksetup() {
                       $(nameservers)
   echo "creating L3 router configuration ... "
   openstack router create os_l3_router
-  openstack router set os_l3_router --external-gateway public
+  openstack router set os_l3_router --external-gateway ${PUBNET}
   echo "adding router to subnet ... "
   openstack router add subnet os_l3_router os_tenant_subnet
-  echo "creating security group os_standard (ports 22,80,443,3389,8000-8999) ... "
-  openstack security group create os_standard
-  echo "allowing ICMP ... " 
-  openstack security group rule create os_standard --protocol icmp
-  echo "allowing port 22 ... "
-  openstack security group rule create os_standard --protocol tcp --dst-port 22:22 --remote-ip 0.0.0.0/0
-  echo "allowing port 80 ... "
-  openstack security group rule create os_standard --protocol tcp --dst-port 80:80 --remote-ip 0.0.0.0/0
-  echo "allowing port 443 ... "
-  openstack security group rule create os_standard --protocol tcp --dst-port 443:443 --remote-ip 0.0.0.0/0
-  echo "allowing port 3389 ... "
-  openstack security group rule create os_standard --protocol tcp --dst-port 3389:3389 --remote-ip 0.0.0.0/0
-  echo "allowing port 8000-8999 ... "
-  openstack security group rule create os_standard --protocol tcp --dst-port 8000:8999 --remote-ip 0.0.0.0/0
-  echo "installing new Image, executing this command:"
-  echo "${SCR} newimage ${DEFIMAGEURL} ${DEFIMAGE}"
-  newimage ${DEFIMAGEURL} ${DEFIMAGE}  
 }
+
+secgroupsetup() {
+  echo "creating security group ${SECGROUP} (ports 22,80,443,3389,8000-8999) ... "
+  openstack security group create ${SECGROUP}
+  echo "allowing ICMP ... "
+  openstack security group rule create ${SECGROUP} --protocol icmp
+  echo "allowing port 22 ... "
+  openstack security group rule create ${SECGROUP} --protocol tcp --dst-port 22:22 --remote-ip 0.0.0.0/0
+  echo "allowing port 80 ... "
+  openstack security group rule create ${SECGROUP} --protocol tcp --dst-port 80:80 --remote-ip 0.0.0.0/0
+  echo "allowing port 443 ... "
+  openstack security group rule create ${SECGROUP} --protocol tcp --dst-port 443:443 --remote-ip 0.0.0.0/0
+  echo "allowing port 3389 ... "
+  openstack security group rule create ${SECGROUP} --protocol tcp --dst-port 3389:3389 --remote-ip 0.0.0.0/0
+  echo "allowing port 8000-8999 ... "
+  openstack security group rule create ${SECGROUP} --protocol tcp --dst-port 8000:8999 --remote-ip 0.0.0.0/0
+}
+
 
 newimage() {
   TF=$(mktemp)
@@ -194,6 +203,8 @@ newimage() {
   fi
   echo "try to delete existing image ..."
   openstack image delete $2
+  echo "installing new Image, executing this command:"
+  echo "${SCR} newimage $1 $2"
   if [[ -f $1 ]]; then
     openstack image create --file $1 --disk-format qcow2 --min-disk 2 --min-ram 512 --progress $2
   else
@@ -262,18 +273,18 @@ showres() {
 
 sshkey() {
   local PUB="~/.ssh/id_dummy.pub"
-  if [[ -f ~/.ssh/id_rsa.pub ]]; then
-    eval PUB="~/.ssh/id_rsa.pub"
-  elif [[ -f ~/.ssh/id_ed25519.pub ]]; then
+  if [[ -f ~/.ssh/id_ed25519.pub ]]; then
     eval PUB="~/.ssh/id_ed25519.pub"
+  elif [[ -f ~/.ssh/id_rsa.pub ]]; then
+    eval PUB="~/.ssh/id_rsa.pub"
   else
     echo "Public keys ~/.ssh/id_ed25519.pub and ~/.ssh/id_rsa.pub do not exist. Please create it with 'ssh-keygen'"
     return 1
   fi  
-  echo "remove key os_key_$(whoami) if exists... "
-  openstack keypair delete os_key_$(whoami) 2>/dev/null
-  echo "refreshing public key os_key_$(whoami) ... "
-  openstack keypair create --public-key "${PUB}" os_key_$(whoami) 
+  echo "remove key key_$(whoami) if exists... "
+  openstack keypair delete key_$(whoami) 2>/dev/null
+  echo "refreshing public key key_$(whoami) ... "
+  openstack keypair create --public-key "${PUB}" key_$(whoami) 
 }
 
 args() {

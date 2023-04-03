@@ -187,7 +187,7 @@ def main(myxml,lines):
     print ('\n\n****** Top %s affiliations by frequency *******' % dlen)
 
     for i in range(0,dlen-1):
-        print('(%s) %s' % (AFFDICT[l[i]],l[i]))
+        print(str('(%s) %s' % (AFFDICT[l[i]],l[i]), "utf-8"))
         
     print ('\n\n****** All collaborators by frequency *******')
 
