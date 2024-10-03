@@ -1078,14 +1078,6 @@ if [[ "$EUID" -ne ${UID_APPMGR} ]]; then
   umask 0007
 fi
 
-# *** Spack settings ***
-if [[ -z ${SPACK_ROOT} ]]; then
-  export SPACK_ROOT=$(htyReadConfigOrDefault "spack_root")
-fi
-if [[ -n ${SPACK_ROOT} ]]; then
-  initSpack
-fi
-
 # Generic Environment variables and PATHs
 if htyInGid ${GID_SUPERUSERS}; then 
   htyAppendPath "${GR}/sbin"
@@ -1117,7 +1109,7 @@ else
 fi
 
 # *** Easybuild Settings 
-initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
+# initEasybuild "${HPCTOYS_ROOT}/opt/easybuild"
 
 # *** Lmod settings *** 
 export MODULEPATH=${MODULEPATH}:${GR}/opt/eb/modules/all:${GR}/opt/lmod/modules

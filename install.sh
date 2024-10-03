@@ -606,20 +606,20 @@ idefaults_group() {
     . ${HPCTOYS_ROOT}/custom.env
   fi
 
-  # if spack exists, configure it for the group
-  if [[ -d ${SPACK_ROOT} ]]; then
-    . ${SPACK_ROOT}/share/spack/setup-env.sh
-    if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash ]]; then
-       printf "configure Spack environment ... "
-       echo "${SPACK_ROOT}" > \
-              ${HPCTOYS_ROOT}/etc/hpctoys/spack_root
+  # # if spack exists, configure it for the group
+  # if [[ -d ${SPACK_ROOT} ]]; then
+  #   . ${SPACK_ROOT}/share/spack/setup-env.sh
+  #   if ! [[ -f ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash ]]; then
+  #      printf "configure Spack environment ... "
+  #      echo "${SPACK_ROOT}" > \
+  #             ${HPCTOYS_ROOT}/etc/hpctoys/spack_root
 
-       echo "$(spack location -i lmod)/lmod/lmod/init/bash" > \
-              ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash
-       echo "Done!"
-    fi
-    . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
-  fi
+  #      echo "$(spack location -i lmod)/lmod/lmod/init/bash" > \
+  #             ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash
+  #      echo "Done!"
+  #   fi
+  #   . $(cat ${HPCTOYS_ROOT}/etc/hpctoys/spack_lmod_bash)
+  # fi
 
   # copy all tests to root folder 
   if ! [[ -d ${HPCTOYS_ROOT}/tests ]]; then 
@@ -944,18 +944,18 @@ if [[ -z ${SUBCMD} ]]; then
   ipackages
   iother
   idialog
-  ijq
-  iyq
-  ikeychain
-  imc
-  irich
-  irclone
-  igithub
+  #ijq
+  #iyq
+  #ikeychain
+  #imc
+  #irich
+  #irclone
+  #igithub
   # disabling openssl, python and awscli2
   #iopenssl
   #ilpython
   #iawscli2
-  iminiconda
+  #iminiconda
   PATH=${PATH}:${HPCTOYS_ROOT}/bin
   idefaults_group
   idefaults_user
